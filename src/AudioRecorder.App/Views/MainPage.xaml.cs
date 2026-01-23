@@ -1,11 +1,16 @@
 using AudioRecorder.Core.Models;
 using AudioRecorder.Core.Services;
 using AudioRecorder.Services.Audio;
+using AudioRecorder.Services.Notifications;
 using AudioRecorder.Services.Settings;
+using AudioRecorder.Services.Transcription;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace AudioRecorder.Views;
 
@@ -46,18 +51,119 @@ public class AudioSourceViewModel : INotifyPropertyChanged
 }
 
 /// <summary>
+/// ViewModel для спикера
+/// </summary>
+public class SpeakerViewModel : INotifyPropertyChanged
+{
+    private string _name;
+
+    public string Id { get; }
+
+    public string Name
+    {
+        get => _name;
+        set
+        {
+            if (_name != value)
+            {
+                _name = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public SpeakerViewModel(string id, string name)
+    {
+        Id = id;
+        _name = name;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+/// <summary>
+/// ViewModel для сегмента транскрипции
+/// </summary>
+public class TranscriptionSegmentViewModel : INotifyPropertyChanged
+{
+    private string _speakerName;
+    private string _text;
+
+    public TimeSpan Start { get; }
+    public TimeSpan End { get; }
+    public string SpeakerId { get; }
+
+    public string SpeakerName
+    {
+        get => _speakerName;
+        set
+        {
+            if (_speakerName != value)
+            {
+                _speakerName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            if (_text != value)
+            {
+                _text = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string TimestampDisplay => Start.ToString(@"mm\:ss");
+
+    public TranscriptionSegmentViewModel(TranscriptionSegment segment, string speakerName)
+    {
+        Start = segment.Start;
+        End = segment.End;
+        SpeakerId = segment.Speaker;
+        _speakerName = speakerName;
+        _text = segment.Text;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+/// <summary>
 /// Главная страница приложения для записи аудио
 /// </summary>
 public sealed partial class MainPage : Page
 {
     private readonly IAudioCaptureService _audioCaptureService;
+    private readonly ITranscriptionService _transcriptionService;
     private readonly ISettingsService _settingsService;
+    private readonly IAudioPlaybackService _playbackService;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherQueueTimer _updateTimer;
     private string? _lastRecordingPath;
+    private string? _lastTranscriptionPath;
+    private CancellationTokenSource? _transcriptionCts;
+    private bool _isSettingsPanelVisible = true;
+    private TranscriptionSegmentViewModel? _playingSegment;
 
     public ObservableCollection<AudioSourceViewModel> OutputSources { get; } = new();
     public ObservableCollection<AudioSourceViewModel> InputSources { get; } = new();
+    public ObservableCollection<SpeakerViewModel> Speakers { get; } = new();
+    public ObservableCollection<TranscriptionSegmentViewModel> TranscriptionSegments { get; } = new();
 
     public MainPage()
     {
@@ -66,11 +172,17 @@ public sealed partial class MainPage : Page
         _audioCaptureService = new WasapiAudioCaptureService();
         _audioCaptureService.RecordingStateChanged += OnRecordingStateChanged;
 
+        _transcriptionService = new WhisperTranscriptionService();
+        _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
+
         _settingsService = new LocalSettingsService();
+        _playbackService = new AudioPlaybackService();
+        _playbackService.StateChanged += OnPlaybackStateChanged;
+
+        NotificationService.Initialize();
 
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
 
-        // Таймер для обновления UI каждые 500мс
         _updateTimer = _dispatcherQueue.CreateTimer();
         _updateTimer.Interval = TimeSpan.FromMilliseconds(500);
         _updateTimer.Tick += (s, e) => UpdateRecordingInfo();
@@ -81,6 +193,16 @@ public sealed partial class MainPage : Page
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         await LoadAudioSourcesAsync();
+        LoadOutputFolderSetting();
+    }
+
+    private void LoadOutputFolderSetting()
+    {
+        var savedFolder = _settingsService.LoadOutputFolder();
+        if (!string.IsNullOrEmpty(savedFolder))
+        {
+            OutputFolderTextBox.Text = savedFolder;
+        }
     }
 
     private async Task LoadAudioSourcesAsync()
@@ -129,6 +251,43 @@ public sealed partial class MainPage : Page
         StartStopButton.IsEnabled = hasSelection;
     }
 
+    private async void OnSelectFolderClicked(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FolderPicker
+        {
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.DocumentsLibrary
+        };
+        picker.FileTypeFilter.Add("*");
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder != null)
+        {
+            OutputFolderTextBox.Text = folder.Path;
+            _settingsService.SaveOutputFolder(folder.Path);
+        }
+    }
+
+    private void OnToggleSettingsClicked(object sender, RoutedEventArgs e)
+    {
+        _isSettingsPanelVisible = !_isSettingsPanelVisible;
+
+        if (_isSettingsPanelVisible)
+        {
+            SettingsColumn.Width = new GridLength(280);
+            SettingsPanel.Visibility = Visibility.Visible;
+            ToggleSettingsButton.Content = "«";
+        }
+        else
+        {
+            SettingsColumn.Width = new GridLength(0);
+            SettingsPanel.Visibility = Visibility.Collapsed;
+            ToggleSettingsButton.Content = "»";
+        }
+    }
+
     private async void OnStartStopClicked(object sender, RoutedEventArgs e)
     {
         try
@@ -137,7 +296,6 @@ public sealed partial class MainPage : Page
 
             if (info.State == RecordingState.Stopped)
             {
-                // Начинаем запись
                 var selectedSources = OutputSources.Concat(InputSources)
                     .Where(vm => vm.IsSelected)
                     .Select(vm => vm.Source)
@@ -149,22 +307,22 @@ public sealed partial class MainPage : Page
                     return;
                 }
 
-                // Сохраняем выбор
                 _settingsService.SaveSelectedSourceIds(selectedSources.Select(s => s.Id));
 
                 _lastRecordingPath = GetOutputPath();
                 await _audioCaptureService.StartRecordingAsync(selectedSources, _lastRecordingPath);
 
-                StartStopButton.Content = "Остановить запись";
+                StartStopButton.Content = "Остановить";
                 PauseResumeButton.IsEnabled = true;
                 OutputSourcesListView.IsEnabled = false;
                 InputSourcesListView.IsEnabled = false;
+
+                CurrentFileTextBlock.Text = Path.GetFileName(_lastRecordingPath);
 
                 _updateTimer.Start();
             }
             else
             {
-                // Останавливаем запись
                 await _audioCaptureService.StopRecordingAsync();
 
                 StartStopButton.Content = "Начать запись";
@@ -175,16 +333,31 @@ public sealed partial class MainPage : Page
 
                 _updateTimer.Stop();
 
-                // Показываем уведомление о сохранении
                 if (_lastRecordingPath != null && File.Exists(_lastRecordingPath))
                 {
+                    if (AudioConverter.IsWavFile(_lastRecordingPath))
+                    {
+                        StateTextBlock.Text = "Конвертация в MP3...";
+                        try
+                        {
+                            _lastRecordingPath = await AudioConverter.ConvertToMp3Async(
+                                _lastRecordingPath, bitrate: 192, deleteOriginal: true);
+                            CurrentFileTextBlock.Text = Path.GetFileName(_lastRecordingPath);
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Ошибка конвертации: {ex.Message}");
+                        }
+                        StateTextBlock.Text = "Остановлено";
+                    }
+
+                    ShowTranscriptionSection();
                     await ShowRecordingSavedDialogAsync(_lastRecordingPath);
                 }
             }
         }
         catch (Exception ex)
         {
-            // Добавляем дополнительную обработку ошибок для улучшения отладки
             System.Diagnostics.Debug.WriteLine($"Ошибка в OnStartStopClicked: {ex.Message}");
             await ShowErrorDialogAsync($"Ошибка: {ex.Message}");
         }
@@ -226,16 +399,315 @@ public sealed partial class MainPage : Page
         picker.FileTypeFilter.Add(".m4a");
         picker.FileTypeFilter.Add(".ogg");
 
-        // Инициализация для WinUI 3
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
 
         var file = await picker.PickSingleFileAsync();
         if (file != null)
         {
-            // TODO: Обработка импорта файла
-            await ShowInfoDialogAsync($"Выбран файл: {file.Path}\n\nФункция импорта будет реализована позже.");
+            _lastRecordingPath = file.Path;
+            CurrentFileTextBlock.Text = file.Name;
+            ShowTranscriptionSection();
         }
+    }
+
+    private void ShowTranscriptionSection()
+    {
+        TranscriptionControlSection.Visibility = Visibility.Visible;
+        TranscribeButton.IsEnabled = true;
+        TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+        _lastTranscriptionPath = null;
+
+        // Очищаем предыдущую транскрипцию
+        TranscriptionSegments.Clear();
+        Speakers.Clear();
+        SpeakersPanel.Visibility = Visibility.Collapsed;
+        SaveTranscriptionButton.Visibility = Visibility.Collapsed;
+
+        if (!_transcriptionService.IsWhisperAvailable)
+        {
+            WhisperWarningBar.IsOpen = true;
+            TranscribeButton.IsEnabled = false;
+        }
+        else
+        {
+            WhisperWarningBar.IsOpen = false;
+        }
+    }
+
+    private async void OnTranscribeClicked(object sender, RoutedEventArgs e)
+    {
+        if (_lastRecordingPath == null || !File.Exists(_lastRecordingPath))
+        {
+            await ShowErrorDialogAsync("Файл записи не найден");
+            return;
+        }
+
+        TranscribeButton.IsEnabled = false;
+        TranscriptionProgressPanel.Visibility = Visibility.Visible;
+        TranscriptionProgressBar.IsIndeterminate = true;
+        TranscriptionStatusText.Text = "Подготовка...";
+
+        _transcriptionCts = new CancellationTokenSource();
+
+        try
+        {
+            var result = await _transcriptionService.TranscribeAsync(_lastRecordingPath, _transcriptionCts.Token);
+
+            if (result.Success)
+            {
+                _lastTranscriptionPath = result.OutputPath;
+                TranscriptionStatusText.Text = $"Готово! {result.Segments.Count} сегментов";
+                TranscriptionProgressBar.IsIndeterminate = false;
+                TranscriptionProgressBar.Value = 100;
+
+                // Обновляем путь к файлу
+                var mp3Path = Path.ChangeExtension(_lastRecordingPath, ".mp3");
+                if (File.Exists(mp3Path))
+                {
+                    _lastRecordingPath = mp3Path;
+                    CurrentFileTextBlock.Text = Path.GetFileName(mp3Path);
+                }
+
+                // Загружаем транскрипцию в UI
+                await LoadTranscriptionToUI(result.Segments);
+
+                // Загружаем аудио для воспроизведения
+                if (_lastRecordingPath != null && File.Exists(_lastRecordingPath))
+                {
+                    await _playbackService.LoadAsync(_lastRecordingPath);
+                }
+
+                // Уведомление
+                var fileName = Path.GetFileName(_lastRecordingPath ?? "recording");
+                NotificationService.ShowTranscriptionCompleted(fileName, result.Segments.Count, result.OutputPath);
+            }
+            else
+            {
+                await ShowErrorDialogAsync($"Ошибка транскрипции:\n{result.ErrorMessage}");
+                TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+                TranscribeButton.IsEnabled = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorDialogAsync($"Ошибка: {ex.Message}");
+            TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+            TranscribeButton.IsEnabled = true;
+        }
+        finally
+        {
+            _transcriptionCts?.Dispose();
+            _transcriptionCts = null;
+        }
+    }
+
+    private Task LoadTranscriptionToUI(IReadOnlyList<TranscriptionSegment> segments)
+    {
+        TranscriptionSegments.Clear();
+        Speakers.Clear();
+
+        // Собираем уникальных спикеров
+        var speakerIds = segments.Select(s => s.Speaker).Distinct().ToList();
+        var speakerMap = new Dictionary<string, SpeakerViewModel>();
+
+        foreach (var id in speakerIds)
+        {
+            var speaker = new SpeakerViewModel(id, id);
+            Speakers.Add(speaker);
+            speakerMap[id] = speaker;
+        }
+
+        // Создаём ViewModels для сегментов
+        foreach (var segment in segments)
+        {
+            var speakerName = speakerMap.TryGetValue(segment.Speaker, out var speaker) ? speaker.Name : segment.Speaker;
+            TranscriptionSegments.Add(new TranscriptionSegmentViewModel(segment, speakerName));
+        }
+
+        // Показываем панель спикеров если их больше одного
+        SpeakersPanel.Visibility = Speakers.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        SaveTranscriptionButton.Visibility = Visibility.Visible;
+
+        return Task.CompletedTask;
+    }
+
+    private void OnSpeakerNameChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is TextBox textBox && textBox.DataContext is SpeakerViewModel speaker)
+        {
+            // Обновляем имя спикера во всех сегментах
+            foreach (var segment in TranscriptionSegments.Where(s => s.SpeakerId == speaker.Id))
+            {
+                segment.SpeakerName = speaker.Name;
+            }
+        }
+    }
+
+    private void OnSpeakerRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
+    {
+        // Контекстное меню покажется автоматически через ContextFlyout
+    }
+
+    private async void OnRenameSpeakerClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuFlyoutItem menuItem && menuItem.Tag is TranscriptionSegmentViewModel segment)
+        {
+            var speakerId = segment.SpeakerId;
+            var currentName = segment.SpeakerName;
+
+            // Создаём диалог для ввода нового имени
+            var inputBox = new TextBox
+            {
+                Text = currentName,
+                PlaceholderText = "Введите имя спикера",
+                SelectionStart = 0,
+                SelectionLength = currentName.Length
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = $"Переименовать спикера",
+                Content = new StackPanel
+                {
+                    Spacing = 8,
+                    Children =
+                    {
+                        new TextBlock { Text = $"Текущий ID: {speakerId}" },
+                        inputBox
+                    }
+                },
+                PrimaryButtonText = "Переименовать",
+                CloseButtonText = "Отмена",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = Content.XamlRoot
+            };
+
+            var result = await dialog.ShowAsync();
+
+            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(inputBox.Text))
+            {
+                var newName = inputBox.Text.Trim();
+
+                // Обновляем имя во всех сегментах с этим speakerId
+                foreach (var seg in TranscriptionSegments.Where(s => s.SpeakerId == speakerId))
+                {
+                    seg.SpeakerName = newName;
+                }
+
+                // Обновляем в списке спикеров
+                var speakerVm = Speakers.FirstOrDefault(s => s.Id == speakerId);
+                if (speakerVm != null)
+                {
+                    speakerVm.Name = newName;
+                }
+            }
+        }
+    }
+
+    private async void OnTimestampClicked(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is TranscriptionSegmentViewModel segment)
+        {
+            // Если тот же сегмент уже играет — останавливаем
+            if (_playingSegment == segment && _playbackService.State == PlaybackState.Playing)
+            {
+                _playbackService.Stop();
+                _playingSegment = null;
+                return;
+            }
+
+            // Загружаем файл если ещё не загружен
+            if (_lastRecordingPath != null && _playbackService.LoadedFilePath != _lastRecordingPath)
+            {
+                try
+                {
+                    await _playbackService.LoadAsync(_lastRecordingPath);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Ошибка загрузки аудио: {ex.Message}");
+                    await ShowErrorDialogAsync($"Не удалось загрузить аудио: {ex.Message}");
+                    return;
+                }
+            }
+
+            // Воспроизводим сегмент
+            _playbackService.PlaySegment(segment.Start, segment.End, loop: true);
+            _playingSegment = segment;
+        }
+    }
+
+    private void OnPlaybackStateChanged(object? sender, PlaybackState state)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (state == PlaybackState.Stopped)
+            {
+                _playingSegment = null;
+            }
+        });
+    }
+
+    private async void OnSaveTranscriptionClicked(object sender, RoutedEventArgs e)
+    {
+        if (_lastTranscriptionPath == null)
+            return;
+
+        try
+        {
+            var sb = new StringBuilder();
+
+            foreach (var segment in TranscriptionSegments)
+            {
+                // Если есть timestamp — сохраняем с ними
+                if (segment.Start != TimeSpan.Zero || segment.End != TimeSpan.Zero)
+                {
+                    var startStr = $"{(int)segment.Start.TotalHours:00}:{segment.Start.Minutes:00}:{segment.Start.Seconds:00}.{segment.Start.Milliseconds:000}";
+                    var endStr = $"{(int)segment.End.TotalHours:00}:{segment.End.Minutes:00}:{segment.End.Seconds:00}.{segment.End.Milliseconds:000}";
+                    sb.AppendLine($"[{startStr} --> {endStr}] [{segment.SpeakerName}] {segment.Text}");
+                }
+                else
+                {
+                    // Fallback сегменты — только текст
+                    sb.AppendLine(segment.Text);
+                }
+            }
+
+            await File.WriteAllTextAsync(_lastTranscriptionPath, sb.ToString());
+
+            var dialog = new ContentDialog
+            {
+                Title = "Сохранено",
+                Content = $"Изменения сохранены в:\n{Path.GetFileName(_lastTranscriptionPath)}",
+                CloseButtonText = "OK",
+                XamlRoot = Content.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+        }
+        catch (Exception ex)
+        {
+            await ShowErrorDialogAsync($"Ошибка сохранения: {ex.Message}");
+        }
+    }
+
+    private void OnTranscriptionProgressChanged(object? sender, TranscriptionProgress progress)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            TranscriptionStatusText.Text = progress.StatusMessage ?? progress.State.ToString();
+
+            if (progress.ProgressPercent >= 0)
+            {
+                TranscriptionProgressBar.IsIndeterminate = false;
+                TranscriptionProgressBar.Value = progress.ProgressPercent;
+            }
+            else
+            {
+                TranscriptionProgressBar.IsIndeterminate = true;
+            }
+        });
     }
 
     private void OnRecordingStateChanged(object? sender, RecordingInfo info)
@@ -257,7 +729,7 @@ public sealed partial class MainPage : Page
         StateTextBlock.Text = info.State switch
         {
             RecordingState.Stopped => "Остановлено",
-            RecordingState.Recording => "Идёт запись",
+            RecordingState.Recording => "Запись",
             RecordingState.Paused => "Пауза",
             _ => "Неизвестно"
         };
@@ -268,7 +740,7 @@ public sealed partial class MainPage : Page
 
     private static string FormatFileSize(long bytes)
     {
-        string[] sizes = { "B", "KB", "MB", "GB" };
+        string[] sizes = ["B", "KB", "MB", "GB"];
         double len = bytes;
         int order = 0;
 
@@ -283,13 +755,16 @@ public sealed partial class MainPage : Page
 
     private string GetOutputPath()
     {
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var audioRecorderPath = Path.Combine(documentsPath, "AudioRecorder");
+        // Используем сохранённую папку или папку по умолчанию
+        var savedFolder = _settingsService.LoadOutputFolder();
+        var outputFolder = !string.IsNullOrEmpty(savedFolder)
+            ? savedFolder
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AudioRecorder");
 
-        Directory.CreateDirectory(audioRecorderPath);
+        Directory.CreateDirectory(outputFolder);
 
         var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        return Path.Combine(audioRecorderPath, $"recording_{timestamp}.wav");
+        return Path.Combine(outputFolder, $"recording_{timestamp}.wav");
     }
 
     private async Task ShowRecordingSavedDialogAsync(string filePath)
@@ -299,7 +774,7 @@ public sealed partial class MainPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "✅ Запись сохранена",
+            Title = "Запись сохранена",
             Content = new StackPanel
             {
                 Spacing = 12,
@@ -312,7 +787,7 @@ public sealed partial class MainPage : Page
                     },
                     new HyperlinkButton
                     {
-                        Content = "Открыть папку с записью",
+                        Content = "Открыть папку",
                         Tag = filePath
                     }
                 }
@@ -321,7 +796,6 @@ public sealed partial class MainPage : Page
             XamlRoot = Content.XamlRoot
         };
 
-        // Находим кнопку и подписываемся на клик
         var stackPanel = (StackPanel)dialog.Content;
         var button = (HyperlinkButton)stackPanel.Children[1];
         button.Click += (s, e) =>
@@ -345,19 +819,6 @@ public sealed partial class MainPage : Page
         var dialog = new ContentDialog
         {
             Title = "Ошибка",
-            Content = message,
-            CloseButtonText = "OK",
-            XamlRoot = Content.XamlRoot
-        };
-
-        await dialog.ShowAsync();
-    }
-
-    private async Task ShowInfoDialogAsync(string message)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "Информация",
             Content = message,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot

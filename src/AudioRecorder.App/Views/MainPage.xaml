@@ -9,186 +9,386 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <Page.Content>
-        <Grid Margin="24">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <!-- Левая панель настроек (сворачиваемая) -->
+                <ColumnDefinition x:Name="SettingsColumn" Width="280" />
+                <!-- Кнопка сворачивания -->
+                <ColumnDefinition Width="Auto" />
+                <!-- Центральная панель управления -->
+                <ColumnDefinition Width="320" />
+                <!-- Правая панель транскрипции -->
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
 
-            <!-- Заголовок -->
-            <TextBlock
-                Grid.Row="0"
-                FontSize="28"
-                FontWeight="SemiBold"
-                Margin="0,0,0,24"
-                Text="AudioRecorder" />
-
-            <!-- Основной контент -->
-            <StackPanel
-                Grid.Row="1"
-                MaxWidth="600"
-                Spacing="16">
-
-                <!-- Выбор источников аудио (множественный) -->
-                <StackPanel Spacing="12">
-                    <TextBlock
-                        FontSize="16"
-                        FontWeight="Medium"
-                        Text="Источники аудио (выберите один или несколько)" />
-
-                    <!-- Источники ВЫВОДА (системный звук) -->
-                    <StackPanel Spacing="4">
-                        <TextBlock
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                            Text="🔊 Вывод (системный звук)" />
-                        <Border
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            MaxHeight="150">
-                            <ListView
-                                x:Name="OutputSourcesListView"
-                                SelectionMode="None"
-                                ItemsSource="{x:Bind OutputSources, Mode=OneWay}">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate x:DataType="views:AudioSourceViewModel">
-                                        <CheckBox
-                                            Content="{x:Bind Source.Name}"
-                                            IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
-                                            Checked="OnSourceSelectionChanged"
-                                            Unchecked="OnSourceSelectionChanged" />
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </Border>
-                    </StackPanel>
-
-                    <!-- Источники ВВОДА (микрофоны) -->
-                    <StackPanel Spacing="4">
-                        <TextBlock
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            Foreground="{ThemeResource AccentTextFillColorSecondaryBrush}"
-                            Text="🎤 Ввод (микрофоны)" />
-                        <Border
-                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            MaxHeight="150">
-                            <ListView
-                                x:Name="InputSourcesListView"
-                                SelectionMode="None"
-                                ItemsSource="{x:Bind InputSources, Mode=OneWay}">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate x:DataType="views:AudioSourceViewModel">
-                                        <CheckBox
-                                            Content="{x:Bind Source.Name}"
-                                            IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
-                                            Checked="OnSourceSelectionChanged"
-                                            Unchecked="OnSourceSelectionChanged" />
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
-                        </Border>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Статус записи -->
-                <Border
-                    BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="16">
-                    <StackPanel Spacing="12">
+            <!-- Колонка 0: Панель настроек -->
+            <Border
+                x:Name="SettingsPanel"
+                Grid.Column="0"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="16">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="16">
                         <TextBlock
                             FontSize="16"
-                            FontWeight="Medium"
-                            Text="Статус" />
+                            FontWeight="SemiBold"
+                            Text="Настройки" />
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+                        <!-- Папка сохранения -->
+                        <StackPanel Spacing="4">
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Папка для записей" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    x:Name="OutputFolderTextBox"
+                                    Grid.Column="0"
+                                    IsReadOnly="True"
+                                    PlaceholderText="По умолчанию: Documents\AudioRecorder" />
+                                <Button
+                                    Grid.Column="1"
+                                    Click="OnSelectFolderClicked"
+                                    Content="..."
+                                    ToolTipService.ToolTip="Выбрать папку" />
+                            </Grid>
+                        </StackPanel>
 
+                        <!-- Источники ВЫВОДА -->
+                        <StackPanel Spacing="4">
                             <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Margin="0,0,12,8"
-                                Text="Состояние:" />
-                            <TextBlock
-                                x:Name="StateTextBlock"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Margin="0,0,0,8"
+                                FontSize="12"
                                 FontWeight="SemiBold"
-                                Text="Остановлено" />
+                                Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                Text="Вывод (системный звук)" />
+                            <Border
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                MaxHeight="120">
+                                <ListView
+                                    x:Name="OutputSourcesListView"
+                                    SelectionMode="None"
+                                    ItemsSource="{x:Bind OutputSources, Mode=OneWay}">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="views:AudioSourceViewModel">
+                                            <CheckBox
+                                                Content="{x:Bind Source.Name}"
+                                                IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                                                Checked="OnSourceSelectionChanged"
+                                                Unchecked="OnSourceSelectionChanged" />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Border>
+                        </StackPanel>
 
+                        <!-- Источники ВВОДА -->
+                        <StackPanel Spacing="4">
                             <TextBlock
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Margin="0,0,12,8"
-                                Text="Длительность:" />
-                            <TextBlock
-                                x:Name="DurationTextBlock"
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Margin="0,0,0,8"
-                                Text="00:00:00" />
-
-                            <TextBlock
-                                Grid.Row="2"
-                                Grid.Column="0"
-                                Margin="0,0,12,0"
-                                Text="Размер:" />
-                            <TextBlock
-                                x:Name="FileSizeTextBlock"
-                                Grid.Row="2"
-                                Grid.Column="1"
-                                Text="0 MB" />
-                        </Grid>
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="{ThemeResource AccentTextFillColorSecondaryBrush}"
+                                Text="Ввод (микрофоны)" />
+                            <Border
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                MaxHeight="120">
+                                <ListView
+                                    x:Name="InputSourcesListView"
+                                    SelectionMode="None"
+                                    ItemsSource="{x:Bind InputSources, Mode=OneWay}">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="views:AudioSourceViewModel">
+                                            <CheckBox
+                                                Content="{x:Bind Source.Name}"
+                                                IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                                                Checked="OnSourceSelectionChanged"
+                                                Unchecked="OnSourceSelectionChanged" />
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </Border>
 
-                <!-- Кнопки управления -->
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+            <!-- Колонка 1: Кнопка сворачивания -->
+            <ToggleButton
+                x:Name="ToggleSettingsButton"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Click="OnToggleSettingsClicked"
+                Content="«"
+                ToolTipService.ToolTip="Свернуть/развернуть настройки"
+                Width="24"
+                Padding="0"
+                Background="Transparent"
+                BorderThickness="0" />
 
+            <!-- Колонка 2: Панель управления -->
+            <Border
+                Grid.Column="2"
+                Padding="16">
+                <StackPanel Spacing="16">
+                    <TextBlock
+                        FontSize="20"
+                        FontWeight="SemiBold"
+                        Text="AudioRecorder" />
+
+                    <!-- Статус записи -->
+                    <Border
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12">
+                        <StackPanel Spacing="8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,4" Text="Статус:" />
+                                <TextBlock x:Name="StateTextBlock" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" FontWeight="SemiBold" Text="Остановлено" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,8,4" Text="Время:" />
+                                <TextBlock x:Name="DurationTextBlock" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Text="00:00:00" />
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,8,0" Text="Размер:" />
+                                <TextBlock x:Name="FileSizeTextBlock" Grid.Row="2" Grid.Column="1" Text="0 MB" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Имя текущего файла -->
+                    <TextBlock
+                        x:Name="CurrentFileTextBlock"
+                        FontSize="12"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                        Text=""
+                        TextTrimming="CharacterEllipsis"
+                        ToolTipService.ToolTip="{x:Bind CurrentFileTextBlock.Text, Mode=OneWay}" />
+
+                    <!-- Кнопки записи -->
+                    <Grid ColumnSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Button
+                            x:Name="StartStopButton"
+                            Grid.Column="0"
+                            HorizontalAlignment="Stretch"
+                            Click="OnStartStopClicked"
+                            Content="Начать запись"
+                            IsEnabled="False"
+                            Style="{StaticResource AccentButtonStyle}" />
+
+                        <Button
+                            x:Name="PauseResumeButton"
+                            Grid.Column="1"
+                            HorizontalAlignment="Stretch"
+                            Click="OnPauseResumeClicked"
+                            Content="Пауза"
+                            IsEnabled="False" />
+                    </Grid>
+
+                    <!-- Импорт файла -->
                     <Button
-                        x:Name="StartStopButton"
-                        Grid.Column="0"
+                        x:Name="ImportButton"
                         HorizontalAlignment="Stretch"
-                        Click="OnStartStopClicked"
-                        Content="Начать запись"
-                        IsEnabled="False" />
+                        Click="OnImportClicked"
+                        Content="Импортировать файл" />
 
+                    <!-- Секция транскрипции -->
+                    <Border
+                        x:Name="TranscriptionControlSection"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Visibility="Collapsed">
+                        <StackPanel Spacing="8">
+                            <TextBlock FontSize="14" FontWeight="Medium" Text="Транскрипция" />
+
+                            <!-- Прогресс -->
+                            <StackPanel x:Name="TranscriptionProgressPanel" Spacing="4" Visibility="Collapsed">
+                                <ProgressBar
+                                    x:Name="TranscriptionProgressBar"
+                                    Minimum="0"
+                                    Maximum="100"
+                                    IsIndeterminate="True" />
+                                <TextBlock
+                                    x:Name="TranscriptionStatusText"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="Подготовка..." />
+                            </StackPanel>
+
+                            <!-- Кнопка расшифровки -->
+                            <Button
+                                x:Name="TranscribeButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnTranscribeClicked"
+                                Content="Расшифровать" />
+
+                            <!-- Whisper warning -->
+                            <InfoBar
+                                x:Name="WhisperWarningBar"
+                                IsOpen="False"
+                                Severity="Warning"
+                                Title="Whisper не найден"
+                                Message="Скачайте faster-whisper-xxl" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- Колонка 3: Панель транскрипции -->
+            <Border
+                Grid.Column="3"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1,0,0,0"
+                Padding="16">
+                <Grid RowSpacing="12">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Заголовок -->
+                    <TextBlock
+                        Grid.Row="0"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="Расшифровка" />
+
+                    <!-- Список спикеров (редактируемые имена) -->
+                    <StackPanel
+                        x:Name="SpeakersPanel"
+                        Grid.Row="1"
+                        Spacing="8"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="Спикеры (двойной клик для редактирования)" />
+                        <ItemsRepeater
+                            x:Name="SpeakersRepeater"
+                            ItemsSource="{x:Bind Speakers, Mode=OneWay}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="8" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="views:SpeakerViewModel">
+                                    <Border
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="4"
+                                        Padding="8,4">
+                                        <TextBox
+                                            Text="{x:Bind Name, Mode=TwoWay}"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Foreground="White"
+                                            FontSize="12"
+                                            MinWidth="80"
+                                            TextChanged="OnSpeakerNameChanged" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+
+                    <!-- Список сегментов транскрипции -->
+                    <ListView
+                        x:Name="TranscriptionListView"
+                        Grid.Row="2"
+                        ItemsSource="{x:Bind TranscriptionSegments, Mode=OneWay}"
+                        SelectionMode="None">
+                        <ListView.ItemTemplate>
+                            <DataTemplate x:DataType="views:TranscriptionSegmentViewModel">
+                                <Grid ColumnSpacing="8" Padding="4,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="60" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Timestamp (кликабельный) -->
+                                    <Button
+                                        Grid.Column="0"
+                                        Content="{x:Bind TimestampDisplay}"
+                                        Click="OnTimestampClicked"
+                                        Tag="{x:Bind}"
+                                        Padding="4,2"
+                                        FontSize="11"
+                                        FontFamily="Consolas"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        ToolTipService.ToolTip="Воспроизвести сегмент" />
+
+                                    <!-- Speaker (с контекстным меню) -->
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{x:Bind SpeakerName, Mode=OneWay}"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                        VerticalAlignment="Center"
+                                        RightTapped="OnSpeakerRightTapped"
+                                        Tag="{x:Bind}">
+                                        <TextBlock.ContextFlyout>
+                                            <MenuFlyout>
+                                                <MenuFlyoutItem
+                                                    Text="Переименовать спикера"
+                                                    Click="OnRenameSpeakerClicked"
+                                                    Tag="{x:Bind}" />
+                                            </MenuFlyout>
+                                        </TextBlock.ContextFlyout>
+                                    </TextBlock>
+
+                                    <!-- Text (редактируемый) -->
+                                    <TextBox
+                                        Grid.Column="2"
+                                        Text="{x:Bind Text, Mode=TwoWay}"
+                                        TextWrapping="Wrap"
+                                        AcceptsReturn="True"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        FontSize="13" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Кнопка сохранения -->
                     <Button
-                        x:Name="PauseResumeButton"
-                        Grid.Column="1"
+                        x:Name="SaveTranscriptionButton"
+                        Grid.Row="3"
                         HorizontalAlignment="Stretch"
-                        Click="OnPauseResumeClicked"
-                        Content="Пауза"
-                        IsEnabled="False" />
+                        Click="OnSaveTranscriptionClicked"
+                        Content="Сохранить изменения"
+                        Visibility="Collapsed" />
                 </Grid>
-
-                <!-- Кнопка импорта файла -->
-                <Button
-                    x:Name="ImportButton"
-                    HorizontalAlignment="Stretch"
-                    Click="OnImportClicked"
-                    Content="Импортировать аудиофайл" />
-
-            </StackPanel>
+            </Border>
         </Grid>
     </Page.Content>
 </Page>

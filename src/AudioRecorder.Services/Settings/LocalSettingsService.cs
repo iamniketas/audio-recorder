@@ -22,17 +22,9 @@ public class LocalSettingsService : ISettingsService
     {
         try
         {
-            var settings = new AppSettings
-            {
-                SelectedSourceIds = sourceIds.ToList()
-            };
-
-            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-
-            File.WriteAllText(_settingsFilePath, json);
+            var settings = LoadSettings();
+            settings.SelectedSourceIds = sourceIds.ToList();
+            SaveSettings(settings);
         }
         catch (Exception ex)
         {
@@ -44,15 +36,8 @@ public class LocalSettingsService : ISettingsService
     {
         try
         {
-            if (!File.Exists(_settingsFilePath))
-            {
-                return new List<string>();
-            }
-
-            var json = File.ReadAllText(_settingsFilePath);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json);
-
-            return settings?.SelectedSourceIds ?? new List<string>();
+            var settings = LoadSettings();
+            return settings.SelectedSourceIds;
         }
         catch (Exception ex)
         {
@@ -61,8 +46,55 @@ public class LocalSettingsService : ISettingsService
         }
     }
 
+    public void SaveOutputFolder(string folderPath)
+    {
+        try
+        {
+            var settings = LoadSettings();
+            settings.OutputFolder = folderPath;
+            SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ошибка сохранения папки: {ex.Message}");
+        }
+    }
+
+    public string? LoadOutputFolder()
+    {
+        try
+        {
+            var settings = LoadSettings();
+            return settings.OutputFolder;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ошибка загрузки папки: {ex.Message}");
+            return null;
+        }
+    }
+
+    private AppSettings LoadSettings()
+    {
+        if (!File.Exists(_settingsFilePath))
+            return new AppSettings();
+
+        var json = File.ReadAllText(_settingsFilePath);
+        return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
+    }
+
+    private void SaveSettings(AppSettings settings)
+    {
+        var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+        File.WriteAllText(_settingsFilePath, json);
+    }
+
     private class AppSettings
     {
         public List<string> SelectedSourceIds { get; set; } = new();
+        public string? OutputFolder { get; set; }
     }
 }

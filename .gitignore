@@ -103,6 +103,9 @@ recordings/
 *.mp3
 *.flac
 
+# Tools (large binaries)
+tools/
+
 # Claude Code
 .claude/
 conversation-*.txt

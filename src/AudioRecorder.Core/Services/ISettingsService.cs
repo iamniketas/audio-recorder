@@ -14,4 +14,14 @@ public interface ISettingsService
     /// Загрузить список ID выбранных источников
     /// </summary>
     IReadOnlyList<string> LoadSelectedSourceIds();
+
+    /// <summary>
+    /// Сохранить путь к папке для записей
+    /// </summary>
+    void SaveOutputFolder(string folderPath);
+
+    /// <summary>
+    /// Загрузить путь к папке для записей (null = папка по умолчанию)
+    /// </summary>
+    string? LoadOutputFolder();
 }
