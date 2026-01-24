@@ -47,15 +47,19 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox
+                                <TextBlock
                                     x:Name="OutputFolderTextBox"
                                     Grid.Column="0"
-                                    IsReadOnly="True"
-                                    PlaceholderText="По умолчанию: Documents\AudioRecorder" />
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Text="..."
+                                    TextTrimming="CharacterEllipsis"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                 <Button
                                     Grid.Column="1"
                                     Click="OnSelectFolderClicked"
                                     Content="..."
+                                    Padding="8,4"
                                     ToolTipService.ToolTip="Выбрать папку" />
                             </Grid>
                         </StackPanel>
@@ -76,13 +80,25 @@
                                     x:Name="OutputSourcesListView"
                                     SelectionMode="None"
                                     ItemsSource="{x:Bind OutputSources, Mode=OneWay}">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Padding" Value="4,2" />
+                                            <Setter Property="MinHeight" Value="32" />
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="views:AudioSourceViewModel">
                                             <CheckBox
-                                                Content="{x:Bind Source.Name}"
                                                 IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
                                                 Checked="OnSourceSelectionChanged"
-                                                Unchecked="OnSourceSelectionChanged" />
+                                                Unchecked="OnSourceSelectionChanged"
+                                                MaxWidth="220"
+                                                ToolTipService.ToolTip="{x:Bind Source.Name}">
+                                                <TextBlock
+                                                    Text="{x:Bind Source.Name}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    MaxWidth="180" />
+                                            </CheckBox>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>
@@ -105,13 +121,25 @@
                                     x:Name="InputSourcesListView"
                                     SelectionMode="None"
                                     ItemsSource="{x:Bind InputSources, Mode=OneWay}">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Padding" Value="4,2" />
+                                            <Setter Property="MinHeight" Value="32" />
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="views:AudioSourceViewModel">
                                             <CheckBox
-                                                Content="{x:Bind Source.Name}"
                                                 IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
                                                 Checked="OnSourceSelectionChanged"
-                                                Unchecked="OnSourceSelectionChanged" />
+                                                Unchecked="OnSourceSelectionChanged"
+                                                MaxWidth="220"
+                                                ToolTipService.ToolTip="{x:Bind Source.Name}">
+                                                <TextBlock
+                                                    Text="{x:Bind Source.Name}"
+                                                    TextTrimming="CharacterEllipsis"
+                                                    MaxWidth="180" />
+                                            </CheckBox>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>
@@ -271,15 +299,40 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <!-- Заголовок -->
-                    <TextBlock
-                        Grid.Row="0"
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Text="Расшифровка" />
+                    <!-- Заголовок с кнопкой сохранения -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="Расшифровка"
+                            VerticalAlignment="Center" />
+                        <Button
+                            x:Name="SaveTranscriptionButton"
+                            Grid.Column="1"
+                            Click="OnSaveTranscriptionClicked"
+                            Visibility="Collapsed"
+                            Padding="8,4"
+                            ToolTipService.ToolTip="Сохранить изменения">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse
+                                    x:Name="SaveIndicator"
+                                    Width="8"
+                                    Height="8"
+                                    Fill="#4CAF50"
+                                    VerticalAlignment="Center" />
+                                <FontIcon
+                                    Glyph="&#xE74E;"
+                                    FontSize="14" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
 
                     <!-- Список спикеров (редактируемые имена) -->
                     <StackPanel
@@ -323,12 +376,19 @@
                         Grid.Row="2"
                         ItemsSource="{x:Bind TranscriptionSegments, Mode=OneWay}"
                         SelectionMode="None">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Padding" Value="0" />
+                                <Setter Property="Margin" Value="0,2" />
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            </Style>
+                        </ListView.ItemContainerStyle>
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="views:TranscriptionSegmentViewModel">
-                                <Grid ColumnSpacing="8" Padding="4,8">
+                                <Grid ColumnSpacing="12" Padding="0,4">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="60" />
-                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="50" />
+                                        <ColumnDefinition Width="Auto" MinWidth="60" MaxWidth="100" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
@@ -343,50 +403,55 @@
                                         FontFamily="Consolas"
                                         Background="Transparent"
                                         BorderThickness="0"
-                                        ToolTipService.ToolTip="Воспроизвести сегмент" />
+                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                        VerticalAlignment="Top"
+                                        HorizontalAlignment="Left"
+                                        ToolTipService.ToolTip="Воспроизвести сегмент (клик)" />
 
                                     <!-- Speaker (с контекстным меню) -->
-                                    <TextBlock
+                                    <Border
                                         Grid.Column="1"
-                                        Text="{x:Bind SpeakerName, Mode=OneWay}"
-                                        FontSize="12"
-                                        FontWeight="SemiBold"
-                                        Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                        VerticalAlignment="Center"
+                                        Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        VerticalAlignment="Top"
                                         RightTapped="OnSpeakerRightTapped"
                                         Tag="{x:Bind}">
-                                        <TextBlock.ContextFlyout>
+                                        <Border.ContextFlyout>
                                             <MenuFlyout>
                                                 <MenuFlyoutItem
                                                     Text="Переименовать спикера"
                                                     Click="OnRenameSpeakerClicked"
                                                     Tag="{x:Bind}" />
                                             </MenuFlyout>
-                                        </TextBlock.ContextFlyout>
-                                    </TextBlock>
+                                        </Border.ContextFlyout>
+                                        <TextBlock
+                                            Text="{x:Bind SpeakerName, Mode=OneWay}"
+                                            FontSize="11"
+                                            FontWeight="SemiBold"
+                                            Foreground="White"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTipService.ToolTip="ПКМ для переименования" />
+                                    </Border>
 
                                     <!-- Text (редактируемый) -->
                                     <TextBox
                                         Grid.Column="2"
                                         Text="{x:Bind Text, Mode=TwoWay}"
                                         TextWrapping="Wrap"
-                                        AcceptsReturn="True"
+                                        AcceptsReturn="False"
                                         BorderThickness="0"
                                         Background="Transparent"
-                                        FontSize="13" />
+                                        FontSize="13"
+                                        VerticalAlignment="Top"
+                                        Padding="4,2"
+                                        TextChanged="OnSegmentTextChanged"
+                                        Tag="{x:Bind}" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>
 
-                    <!-- Кнопка сохранения -->
-                    <Button
-                        x:Name="SaveTranscriptionButton"
-                        Grid.Row="3"
-                        HorizontalAlignment="Stretch"
-                        Click="OnSaveTranscriptionClicked"
-                        Content="Сохранить изменения"
-                        Visibility="Collapsed" />
                 </Grid>
             </Border>
         </Grid>

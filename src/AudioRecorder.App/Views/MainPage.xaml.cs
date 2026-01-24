@@ -159,6 +159,9 @@ public sealed partial class MainPage : Page
     private CancellationTokenSource? _transcriptionCts;
     private bool _isSettingsPanelVisible = true;
     private TranscriptionSegmentViewModel? _playingSegment;
+    private bool _hasUnsavedChanges;
+    // Словарь: оригинальный ID спикера → текущее имя
+    private readonly Dictionary<string, string> _speakerNameMap = new();
 
     public ObservableCollection<AudioSourceViewModel> OutputSources { get; } = new();
     public ObservableCollection<AudioSourceViewModel> InputSources { get; } = new();
@@ -201,8 +204,26 @@ public sealed partial class MainPage : Page
         var savedFolder = _settingsService.LoadOutputFolder();
         if (!string.IsNullOrEmpty(savedFolder))
         {
-            OutputFolderTextBox.Text = savedFolder;
+            OutputFolderTextBox.Text = FormatFolderPath(savedFolder);
+            ToolTipService.SetToolTip(OutputFolderTextBox, savedFolder);
         }
+        else
+        {
+            var defaultFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "AudioRecorder");
+            OutputFolderTextBox.Text = FormatFolderPath(defaultFolder);
+            ToolTipService.SetToolTip(OutputFolderTextBox, defaultFolder);
+        }
+    }
+
+    private static string FormatFolderPath(string fullPath)
+    {
+        // Показываем последние 2 компонента пути с ... впереди если путь длинный
+        var parts = fullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (parts.Length > 3)
+        {
+            return $"...{Path.DirectorySeparatorChar}{string.Join(Path.DirectorySeparatorChar, parts.TakeLast(2))}";
+        }
+        return fullPath;
     }
 
     private async Task LoadAudioSourcesAsync()
@@ -265,7 +286,8 @@ public sealed partial class MainPage : Page
         var folder = await picker.PickSingleFolderAsync();
         if (folder != null)
         {
-            OutputFolderTextBox.Text = folder.Path;
+            OutputFolderTextBox.Text = FormatFolderPath(folder.Path);
+            ToolTipService.SetToolTip(OutputFolderTextBox, folder.Path);
             _settingsService.SaveOutputFolder(folder.Path);
         }
     }
@@ -506,6 +528,7 @@ public sealed partial class MainPage : Page
     {
         TranscriptionSegments.Clear();
         Speakers.Clear();
+        _speakerNameMap.Clear();
 
         // Собираем уникальных спикеров
         var speakerIds = segments.Select(s => s.Speaker).Distinct().ToList();
@@ -516,6 +539,8 @@ public sealed partial class MainPage : Page
             var speaker = new SpeakerViewModel(id, id);
             Speakers.Add(speaker);
             speakerMap[id] = speaker;
+            // Инициализируем словарь: оригинальное имя = текущему
+            _speakerNameMap[id] = id;
         }
 
         // Создаём ViewModels для сегментов
@@ -528,6 +553,7 @@ public sealed partial class MainPage : Page
         // Показываем панель спикеров если их больше одного
         SpeakersPanel.Visibility = Speakers.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         SaveTranscriptionButton.Visibility = Visibility.Visible;
+        SetUnsavedChanges(false);
 
         return Task.CompletedTask;
     }
@@ -541,6 +567,26 @@ public sealed partial class MainPage : Page
             {
                 segment.SpeakerName = speaker.Name;
             }
+            // Обновляем словарь соответствий
+            _speakerNameMap[speaker.Id] = speaker.Name;
+            SetUnsavedChanges(true);
+        }
+    }
+
+    private void OnSegmentTextChanged(object sender, TextChangedEventArgs e)
+    {
+        SetUnsavedChanges(true);
+    }
+
+    private void SetUnsavedChanges(bool hasChanges)
+    {
+        _hasUnsavedChanges = hasChanges;
+        // Обновляем индикатор: жёлтый = несохранено, зелёный = сохранено
+        if (SaveIndicator != null)
+        {
+            SaveIndicator.Fill = hasChanges
+                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 193, 7)) // Жёлтый
+                : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 76, 175, 80)); // Зелёный
         }
     }
 
@@ -551,57 +597,68 @@ public sealed partial class MainPage : Page
 
     private async void OnRenameSpeakerClicked(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuFlyoutItem menuItem && menuItem.Tag is TranscriptionSegmentViewModel segment)
+        TranscriptionSegmentViewModel? segment = null;
+
+        // Поддержка вызова из Border и MenuFlyoutItem
+        if (sender is MenuFlyoutItem menuItem)
         {
-            var speakerId = segment.SpeakerId;
-            var currentName = segment.SpeakerName;
+            segment = menuItem.Tag as TranscriptionSegmentViewModel;
+        }
 
-            // Создаём диалог для ввода нового имени
-            var inputBox = new TextBox
-            {
-                Text = currentName,
-                PlaceholderText = "Введите имя спикера",
-                SelectionStart = 0,
-                SelectionLength = currentName.Length
-            };
+        if (segment == null) return;
 
-            var dialog = new ContentDialog
+        var speakerId = segment.SpeakerId;
+        var currentName = segment.SpeakerName;
+
+        // Создаём диалог для ввода нового имени
+        var inputBox = new TextBox
+        {
+            Text = currentName,
+            PlaceholderText = "Введите имя спикера",
+            SelectionStart = 0,
+            SelectionLength = currentName.Length
+        };
+
+        var dialog = new ContentDialog
+        {
+            Title = $"Переименовать спикера",
+            Content = new StackPanel
             {
-                Title = $"Переименовать спикера",
-                Content = new StackPanel
+                Spacing = 8,
+                Children =
                 {
-                    Spacing = 8,
-                    Children =
-                    {
-                        new TextBlock { Text = $"Текущий ID: {speakerId}" },
-                        inputBox
-                    }
-                },
-                PrimaryButtonText = "Переименовать",
-                CloseButtonText = "Отмена",
-                DefaultButton = ContentDialogButton.Primary,
-                XamlRoot = Content.XamlRoot
-            };
-
-            var result = await dialog.ShowAsync();
-
-            if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(inputBox.Text))
-            {
-                var newName = inputBox.Text.Trim();
-
-                // Обновляем имя во всех сегментах с этим speakerId
-                foreach (var seg in TranscriptionSegments.Where(s => s.SpeakerId == speakerId))
-                {
-                    seg.SpeakerName = newName;
+                    new TextBlock { Text = $"Оригинальный ID: {speakerId}" },
+                    inputBox
                 }
+            },
+            PrimaryButtonText = "Переименовать",
+            CloseButtonText = "Отмена",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot
+        };
 
-                // Обновляем в списке спикеров
-                var speakerVm = Speakers.FirstOrDefault(s => s.Id == speakerId);
-                if (speakerVm != null)
-                {
-                    speakerVm.Name = newName;
-                }
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(inputBox.Text))
+        {
+            var newName = inputBox.Text.Trim();
+
+            // Обновляем имя во всех сегментах с этим speakerId
+            foreach (var seg in TranscriptionSegments.Where(s => s.SpeakerId == speakerId))
+            {
+                seg.SpeakerName = newName;
             }
+
+            // Обновляем в списке спикеров
+            var speakerVm = Speakers.FirstOrDefault(s => s.Id == speakerId);
+            if (speakerVm != null)
+            {
+                speakerVm.Name = newName;
+            }
+
+            // Обновляем словарь соответствий
+            _speakerNameMap[speakerId] = newName;
+            SetUnsavedChanges(true);
         }
     }
 
@@ -660,12 +717,17 @@ public sealed partial class MainPage : Page
 
             foreach (var segment in TranscriptionSegments)
             {
+                // Получаем имя спикера из словаря (или используем текущее)
+                var speakerName = _speakerNameMap.TryGetValue(segment.SpeakerId, out var name)
+                    ? name
+                    : segment.SpeakerName;
+
                 // Если есть timestamp — сохраняем с ними
                 if (segment.Start != TimeSpan.Zero || segment.End != TimeSpan.Zero)
                 {
                     var startStr = $"{(int)segment.Start.TotalHours:00}:{segment.Start.Minutes:00}:{segment.Start.Seconds:00}.{segment.Start.Milliseconds:000}";
                     var endStr = $"{(int)segment.End.TotalHours:00}:{segment.End.Minutes:00}:{segment.End.Seconds:00}.{segment.End.Milliseconds:000}";
-                    sb.AppendLine($"[{startStr} --> {endStr}] [{segment.SpeakerName}] {segment.Text}");
+                    sb.AppendLine($"[{startStr} --> {endStr}] [{speakerName}]: {segment.Text}");
                 }
                 else
                 {
@@ -675,16 +737,7 @@ public sealed partial class MainPage : Page
             }
 
             await File.WriteAllTextAsync(_lastTranscriptionPath, sb.ToString());
-
-            var dialog = new ContentDialog
-            {
-                Title = "Сохранено",
-                Content = $"Изменения сохранены в:\n{Path.GetFileName(_lastTranscriptionPath)}",
-                CloseButtonText = "OK",
-                XamlRoot = Content.XamlRoot
-            };
-
-            await dialog.ShowAsync();
+            SetUnsavedChanges(false);
         }
         catch (Exception ex)
         {

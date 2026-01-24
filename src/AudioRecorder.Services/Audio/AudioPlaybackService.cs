@@ -24,25 +24,24 @@ public class AudioPlaybackService : IAudioPlaybackService
 
     public Task LoadAsync(string audioPath)
     {
-        return Task.Run(() =>
-        {
-            // Освобождаем предыдущие ресурсы
-            CleanupPlayback();
+        // Освобождаем предыдущие ресурсы
+        CleanupPlayback();
 
-            if (!File.Exists(audioPath))
-                throw new FileNotFoundException("Аудиофайл не найден", audioPath);
+        if (!File.Exists(audioPath))
+            throw new FileNotFoundException("Аудиофайл не найден", audioPath);
 
-            _audioReader = new AudioFileReader(audioPath);
-            _waveOut = new WaveOutEvent();
-            _waveOut.Init(_audioReader);
-            _waveOut.PlaybackStopped += OnPlaybackStopped;
+        _audioReader = new AudioFileReader(audioPath);
+        _waveOut = new WaveOutEvent();
+        _waveOut.Init(_audioReader);
+        _waveOut.PlaybackStopped += OnPlaybackStopped;
 
-            LoadedFilePath = audioPath;
+        LoadedFilePath = audioPath;
 
-            // Таймер для контроля позиции (50ms)
-            _positionTimer = new System.Timers.Timer(50);
-            _positionTimer.Elapsed += OnPositionTimerElapsed;
-        });
+        // Таймер для контроля позиции (50ms)
+        _positionTimer = new System.Timers.Timer(50);
+        _positionTimer.Elapsed += OnPositionTimerElapsed;
+
+        return Task.CompletedTask;
     }
 
     public void PlaySegment(TimeSpan start, TimeSpan end, bool loop = true)

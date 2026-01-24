@@ -373,8 +373,22 @@ public partial class WhisperTranscriptionService : ITranscriptionService
 
     private static TimeSpan ParseTimeSpan(string time)
     {
-        // Формат: 00:00:00.000 или 00:00:00,000
+        // Формат: 00:00:00.000, 00:00:00,000 или 00:00.000 (mm:ss.fff)
         time = time.Replace(',', '.');
+
+        // Если формат mm:ss.fff (5 символов до точки), добавляем часы
+        var parts = time.Split('.');
+        if (parts.Length == 2)
+        {
+            var timePart = parts[0];
+            var colonCount = timePart.Count(c => c == ':');
+            if (colonCount == 1)
+            {
+                // Формат mm:ss.fff → 00:mm:ss.fff
+                time = "00:" + time;
+            }
+        }
+
         if (TimeSpan.TryParse(time, out var result))
             return result;
         return TimeSpan.Zero;
@@ -391,6 +405,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     [GeneratedRegex(@"\[(\d{2}:\d{2}:\d{2})")]
     private static partial Regex TimeRegex();
 
-    [GeneratedRegex(@"\[(\d{2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[.,]\d{3})\]\s*(?:\[([^\]]+)\])?\s*(.*)")]
+    // Поддерживает форматы: [00:00:00.000 --> ...] и [00:00.000 --> ...]
+    [GeneratedRegex(@"\[(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\]\s*(?:\[([^\]]+)\])?:?\s*(.*)")]
     private static partial Regex SegmentRegex();
 }
