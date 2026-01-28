@@ -139,16 +139,34 @@ dotnet add src/AudioRecorder.App/AudioRecorder.csproj reference src/AudioRecorde
   - Capture для микрофонов
   - Real-time запись в WAV формат
   - События изменения состояния
+  - Автоконвертация WAV в MP3 для экономии места
+
+### Transcription
+- **WhisperTranscriptionService** (`src/AudioRecorder.Services/Transcription/WhisperTranscriptionService.cs`)
+  - Интеграция с faster-whisper-xxl
+  - Диаризация через pyannote_v3.1 (разделение спикеров)
+  - Детальный прогресс с отображением скорости и времени
+  - Парсинг временных меток и сегментов
+  - Обработка файлов любой длины (60+ минут)
+  - Игнорирование cleanup crash (-1073740791) при успешном результате
+  - Полное логирование процесса для диагностики
 
 ### UI
 - **MainPage** (`src/AudioRecorder.App/Views/MainPage.xaml`)
   - Выбор источника аудио (dropdown)
   - Кнопки управления записью (старт/стоп/пауза)
   - Real-time отображение статуса (длительность, размер)
-  - Импорт аудиофайлов (в разработке)
+  - Импорт аудиофайлов
+  - Детальный прогресс транскрипции (процент, скорость, время)
+  - Статистика результата (символы, слова, размер файла)
+  - Редактирование транскрипции: текст сегментов и имена спикеров
+  - Воспроизведение аудио по клику на временную метку
+  - Индикатор несохранённых изменений
 
 ## Notes
 
 - Записи сохраняются в `%USERPROFILE%\Documents\AudioRecorder\`
-- Формат файлов: `recording_YYYYMMDD_HHmmss.wav`
-- Аудио временное — удаляется после расшифровки (пока не реализовано)
+- Формат файлов: `recording_YYYYMMDD_HHmmss.wav` → `recording_YYYYMMDD_HHmmss.mp3`
+- WAV автоматически конвертируется в MP3 и удаляется
+- Логи Whisper сохраняются как `{имя}_whisper.log` рядом с результатом
+- Launcher скрипты в корне: `run-debug.bat`, `run-release.bat`, `build-and-run.ps1`

@@ -469,6 +469,7 @@ public sealed partial class MainPage : Page
         TranscriptionProgressPanel.Visibility = Visibility.Visible;
         TranscriptionProgressBar.IsIndeterminate = true;
         TranscriptionStatusText.Text = "Подготовка...";
+        TranscriptionStatsPanel.Visibility = Visibility.Collapsed; // Скрываем статистику
 
         _transcriptionCts = new CancellationTokenSource();
 
@@ -482,6 +483,28 @@ public sealed partial class MainPage : Page
                 TranscriptionStatusText.Text = $"Готово! {result.Segments.Count} сегментов";
                 TranscriptionProgressBar.IsIndeterminate = false;
                 TranscriptionProgressBar.Value = 100;
+
+                // Вычисляем и показываем статистику
+                if (result.OutputPath != null && File.Exists(result.OutputPath))
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(result.OutputPath);
+                        var text = await File.ReadAllTextAsync(result.OutputPath);
+
+                        var charCount = text.Length;
+                        var wordCount = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+                        var fileSizeKB = fileInfo.Length / 1024.0;
+
+                        var statsText = $"Символов: {charCount:N0} • Слов: {wordCount:N0} • Размер файла: {fileSizeKB:F1} КБ";
+                        TranscriptionStatsText.Text = statsText;
+                        TranscriptionStatsPanel.Visibility = Visibility.Visible;
+                    }
+                    catch
+                    {
+                        // Если не удалось получить статистику - не страшно
+                    }
+                }
 
                 // Обновляем путь к файлу
                 var mp3Path = Path.ChangeExtension(_lastRecordingPath, ".mp3");
@@ -760,7 +783,44 @@ public sealed partial class MainPage : Page
             {
                 TranscriptionProgressBar.IsIndeterminate = true;
             }
+
+            // Показываем детальную информацию только во время транскрипции
+            if (progress.State == TranscriptionState.Transcribing && progress.ProgressPercent > 0)
+            {
+                TranscriptionDetailsGrid.Visibility = Visibility.Visible;
+
+                // Обновляем детали
+                if (progress.ElapsedTime.HasValue)
+                {
+                    ElapsedTimeText.Text = FormatTimeSpan(progress.ElapsedTime.Value);
+                }
+
+                if (progress.Speed.HasValue && progress.Speed.Value > 0)
+                {
+                    SpeedText.Text = $"{progress.Speed.Value:F1}x";
+                }
+
+                if (progress.RemainingTime.HasValue && progress.RemainingTime.Value.TotalSeconds > 5)
+                {
+                    RemainingTimeText.Text = $"≈{FormatTimeSpan(progress.RemainingTime.Value)}";
+                }
+                else
+                {
+                    RemainingTimeText.Text = "скоро...";
+                }
+            }
+            else
+            {
+                TranscriptionDetailsGrid.Visibility = Visibility.Collapsed;
+            }
         });
+    }
+
+    private static string FormatTimeSpan(TimeSpan ts)
+    {
+        if (ts.TotalHours >= 1)
+            return ts.ToString(@"h\:mm\:ss");
+        return ts.ToString(@"m\:ss");
     }
 
     private void OnRecordingStateChanged(object? sender, RecordingInfo info)

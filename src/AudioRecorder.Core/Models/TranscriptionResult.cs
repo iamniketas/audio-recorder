@@ -26,7 +26,12 @@ public record TranscriptionResult(
 public record TranscriptionProgress(
     TranscriptionState State,
     int ProgressPercent,
-    string? StatusMessage
+    string? StatusMessage,
+    TimeSpan? ElapsedTime = null,
+    TimeSpan? RemainingTime = null,
+    TimeSpan? ProcessedDuration = null,
+    TimeSpan? TotalDuration = null,
+    double? Speed = null  // Скорость расшифровки (x realtime, например 2.5x)
 );
 
 /// <summary>

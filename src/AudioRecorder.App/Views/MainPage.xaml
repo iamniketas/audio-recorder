@@ -255,17 +255,48 @@
                             <TextBlock FontSize="14" FontWeight="Medium" Text="Транскрипция" />
 
                             <!-- Прогресс -->
-                            <StackPanel x:Name="TranscriptionProgressPanel" Spacing="4" Visibility="Collapsed">
+                            <StackPanel x:Name="TranscriptionProgressPanel" Spacing="8" Visibility="Collapsed">
                                 <ProgressBar
                                     x:Name="TranscriptionProgressBar"
                                     Minimum="0"
                                     Maximum="100"
-                                    IsIndeterminate="True" />
+                                    IsIndeterminate="True"
+                                    Height="4" />
+
+                                <!-- Основной статус -->
                                 <TextBlock
                                     x:Name="TranscriptionStatusText"
-                                    FontSize="12"
-                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
                                     Text="Подготовка..." />
+
+                                <!-- Детальная информация -->
+                                <Grid x:Name="TranscriptionDetailsGrid" Visibility="Collapsed">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Прошло:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ElapsedTimeText" Grid.Row="0" Grid.Column="1" Text="—" FontSize="12" Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Скорость:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="SpeedText" Grid.Row="1" Grid.Column="1" Text="—" FontSize="12" Margin="0,0,0,4" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Осталось:" FontSize="12" Margin="0,0,8,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="RemainingTimeText" Grid.Row="2" Grid.Column="1" Text="—" FontSize="12" />
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- Статистика после завершения -->
+                            <StackPanel x:Name="TranscriptionStatsPanel" Spacing="4" Visibility="Collapsed">
+                                <TextBlock Text="Статистика" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,4" />
+                                <TextBlock x:Name="TranscriptionStatsText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
 
                             <!-- Кнопка расшифровки -->

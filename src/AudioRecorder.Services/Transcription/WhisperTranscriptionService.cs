@@ -116,7 +116,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
             RaiseProgress(TranscriptionState.Transcribing, 0, "Запуск Whisper...");
 
             var outputDir = tempOutputDir ?? originalDir;
-            var result = await RunWhisperAsync(processPath, outputDir, originalFileName, ct);
+            var result = await RunWhisperAsync(processPath, outputDir, originalFileName, originalDir, ct);
 
             // Копируем результат обратно если работали в TEMP
             if (result.Success && tempOutputDir != null && result.OutputPath != null)
@@ -178,9 +178,28 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         }
     }
 
-    private async Task<TranscriptionResult> RunWhisperAsync(string audioPath, string outputDir, string outputFileName, CancellationToken ct)
+    private async Task<TranscriptionResult> RunWhisperAsync(string audioPath, string outputDir, string outputFileName, string logDir, CancellationToken ct)
     {
         var arguments = BuildArguments(audioPath, outputDir);
+
+        // Создаём лог-файл для полного вывода Whisper в оригинальной директории (НЕ в TEMP)
+        var logPath = Path.Combine(logDir, $"{outputFileName}_whisper.log");
+        StreamWriter? logWriter = null;
+
+        try
+        {
+            logWriter = new StreamWriter(logPath, append: false, Encoding.UTF8) { AutoFlush = true };
+            logWriter.WriteLine($"=== Whisper Transcription Log ===");
+            logWriter.WriteLine($"Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            logWriter.WriteLine($"Command: \"{_whisperPath}\" {arguments}");
+            logWriter.WriteLine($"Audio: {audioPath}");
+            logWriter.WriteLine($"Output: {outputDir}");
+            logWriter.WriteLine($"=================================\n");
+        }
+        catch
+        {
+            // Если не удалось создать лог - продолжаем без него
+        }
 
         var psi = new ProcessStartInfo
         {
@@ -195,45 +214,101 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         };
 
         using var process = new Process { StartInfo = psi };
-        var outputBuilder = new StringBuilder();
-        var errorBuilder = new StringBuilder();
+
+        // Для длинных файлов не накапливаем весь вывод — только последние строки для ошибок
+        var errorLines = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        const int MaxErrorLines = 200; // Увеличил до 200 для лучшей диагностики
+
+        var outputComplete = new TaskCompletionSource<bool>();
+        var errorComplete = new TaskCompletionSource<bool>();
 
         process.OutputDataReceived += (_, e) =>
         {
-            if (e.Data == null) return;
-            outputBuilder.AppendLine(e.Data);
+            if (e.Data == null)
+            {
+                outputComplete.TrySetResult(true);
+                return;
+            }
+
+            // Логируем в файл
+            try { logWriter?.WriteLine($"[OUT] {e.Data}"); } catch { }
+
             ParseProgressFromOutput(e.Data);
         };
 
         process.ErrorDataReceived += (_, e) =>
         {
-            if (e.Data != null)
+            if (e.Data == null)
             {
-                errorBuilder.AppendLine(e.Data);
-                // faster-whisper-xxl выводит прогресс в stderr
-                ParseProgressFromOutput(e.Data);
+                errorComplete.TrySetResult(true);
+                return;
             }
+
+            // Логируем в файл
+            try { logWriter?.WriteLine($"[ERR] {e.Data}"); } catch { }
+
+            // Сохраняем только последние строки для error message
+            errorLines.Enqueue(e.Data);
+            while (errorLines.Count > MaxErrorLines)
+            {
+                errorLines.TryDequeue(out string? _);
+            }
+
+            // faster-whisper-xxl выводит прогресс в stderr
+            ParseProgressFromOutput(e.Data);
         };
 
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
 
+        // Ждём завершения процесса
         await process.WaitForExitAsync(ct);
+
+        // КРИТИЧНО: дожидаемся завершения чтения output/error streams
+        // WaitForExitAsync может вернуть управление раньше, чем обработаются все данные
+        await Task.WhenAll(outputComplete.Task, errorComplete.Task).ConfigureAwait(false);
+
+        // Закрываем лог
+        try
+        {
+            logWriter?.WriteLine($"\n=================================");
+            logWriter?.WriteLine($"Exit Code: {process.ExitCode}");
+            logWriter?.WriteLine($"Completed: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            logWriter?.Dispose();
+        }
+        catch { }
+
+        // КРИТИЧНО: Whisper может крашиться с кодом -1073740791 при cleanup
+        // ПОСЛЕ успешной записи результата. Проверяем наличие файла ПЕРЕД проверкой exit code.
+        var whisperBaseName = Path.GetFileNameWithoutExtension(audioPath);
+        var whisperTxtPath = Path.Combine(outputDir, $"{whisperBaseName}.txt");
+        bool resultFileExists = File.Exists(whisperTxtPath);
 
         if (process.ExitCode != 0)
         {
-            var error = errorBuilder.ToString();
-            if (string.IsNullOrWhiteSpace(error))
-                error = $"Whisper завершился с кодом {process.ExitCode}";
-            return new TranscriptionResult(false, null, [], error);
+            // Код -1073740791 (0xC0000409) - краш при cleanup pyannote/CUDA
+            // Если файл создан - игнорируем ошибку (транскрипция завершена успешно)
+            if (process.ExitCode == -1073740791 && resultFileExists)
+            {
+                // Транскрипция успешна, несмотря на краш при cleanup
+                System.Diagnostics.Debug.WriteLine($"[Whisper] Ignoring cleanup crash -1073740791, result file exists");
+            }
+            else
+            {
+                var errorMessage = string.Join(Environment.NewLine, errorLines);
+                if (string.IsNullOrWhiteSpace(errorMessage))
+                    errorMessage = $"Whisper завершился с кодом {process.ExitCode}";
+
+                // Добавляем путь к логу в сообщение об ошибке
+                errorMessage += $"\n\nПолный лог сохранён в:\n{logPath}";
+
+                return new TranscriptionResult(false, null, [], errorMessage);
+            }
         }
 
-        // Ищем выходной файл (Whisper создаёт файл с именем аудио)
-        var whisperBaseName = Path.GetFileNameWithoutExtension(audioPath);
-        var whisperTxtPath = Path.Combine(outputDir, $"{whisperBaseName}.txt");
-
-        if (!File.Exists(whisperTxtPath))
+        // whisperBaseName и whisperTxtPath уже определены выше для проверки exit code
+        if (!resultFileExists)
         {
             return new TranscriptionResult(false, null, [], "Файл транскрипции не создан");
         }
@@ -255,77 +330,112 @@ public partial class WhisperTranscriptionService : ITranscriptionService
 
     private string BuildArguments(string audioPath, string outputDir)
     {
-        // faster-whisper-xxl -o {outputDir} -f txt -m large-v2 --diarize pyannote_v3.1 --language ru {audioPath}
-        // Для длинных файлов добавляем:
-        // --vad_filter true — пропуск тишины, снижает нагрузку на память
-        // --chunk_length 30 — обработка частями по 30 секунд (предотвращает OOM на длинных файлах)
-        // --compute_type float16 — экономия VRAM (или int8 для ещё большей экономии)
+        // Используем те же параметры, что работают у пользователя:
+        // faster-whisper-xxl -pp -o source --standard -f txt -m large-v2 --diarize pyannote_v3.1
+        // -pp = print_progress — обновления прогресса каждую секунду
+        // --standard — стандартный формат вывода (более стабильный)
         var sb = new StringBuilder();
+        sb.Append("-pp ");                       // Явный вывод прогресса
         sb.Append($"-o \"{outputDir}\" ");
+        sb.Append("--standard ");                 // Стандартный формат
         sb.Append("-f txt ");
         sb.Append($"-m {_modelName} ");
-        sb.Append("--vad_filter true ");
-        sb.Append("--chunk_length 30 ");
-        sb.Append("--compute_type float16 ");
         sb.Append("--diarize pyannote_v3.1 ");
-        sb.Append("--language ru ");
         sb.Append($"\"{audioPath}\"");
         return sb.ToString();
     }
 
     private void ParseProgressFromOutput(string line)
     {
-        // faster-whisper-xxl выводит прогресс в разных форматах:
-        // "Transcribing: 45.2%" или просто "45%"
-        // Также выводит временные метки: "[00:01:23.456 --> 00:01:25.789]"
+        // faster-whisper-xxl с флагом -pp выводит прогресс в формате:
+        // "  1% |   35/4423 | 00:01<<02:22 | 30.73 audio seconds/s"
+        // Процент | Сегменты | Время(прошло<<осталось) | Скорость
+
+        var elapsed = DateTime.Now - _transcriptionStartTime;
+
+        // Парсим полный формат прогресса
+        var fullProgressMatch = FullProgressRegex().Match(line);
+        if (fullProgressMatch.Success)
+        {
+            // Процент
+            if (!int.TryParse(fullProgressMatch.Groups[1].Value, out var percent))
+                return;
+
+            // Время прошло
+            var elapsedStr = fullProgressMatch.Groups[2].Value;
+            var elapsedTime = ParseTimeSpanShort(elapsedStr);
+
+            // Время осталось
+            var remainingStr = fullProgressMatch.Groups[3].Value;
+            var remainingTime = ParseTimeSpanShort(remainingStr);
+
+            // Скорость (audio seconds/s)
+            double? speed = null;
+            if (double.TryParse(fullProgressMatch.Groups[4].Value.Replace(',', '.'),
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var parsedSpeed))
+            {
+                speed = parsedSpeed;
+            }
+
+            var message = BuildProgressMessage(percent, elapsedTime, remainingTime, null, _audioDuration, speed);
+            RaiseProgress(TranscriptionState.Transcribing, percent, message, elapsedTime, remainingTime, null, _audioDuration, speed);
+            return;
+        }
+
+        // Fallback: старый формат парсинга
+        // Парсим скорость расшифровки (если есть)
+        double? fallbackSpeed = null;
+        var speedMatch = SpeedRegex().Match(line);
+        if (speedMatch.Success && double.TryParse(speedMatch.Groups[1].Value.Replace(',', '.'),
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var parsedFallbackSpeed))
+        {
+            fallbackSpeed = parsedFallbackSpeed;
+        }
 
         // Парсим процент
         var percentMatch = PercentRegex().Match(line);
         if (percentMatch.Success && double.TryParse(percentMatch.Groups[1].Value.Replace(',', '.'),
             System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture,
-            out var percent))
+            out var fallbackPercent))
         {
-            var intPercent = (int)Math.Round(percent);
-            var elapsed = DateTime.Now - _transcriptionStartTime;
+            var intPercent = (int)Math.Round(fallbackPercent);
             var remaining = intPercent > 0
                 ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (100 - intPercent) / intPercent)
                 : TimeSpan.Zero;
 
-            var message = remaining.TotalSeconds > 5
-                ? $"Транскрипция... {intPercent}% (осталось ~{FormatTimeSpan(remaining)})"
-                : $"Транскрипция... {intPercent}%";
+            var message = BuildProgressMessage(intPercent, elapsed, remaining, null, _audioDuration, fallbackSpeed);
 
-            RaiseProgress(TranscriptionState.Transcribing, intPercent, message);
+            RaiseProgress(TranscriptionState.Transcribing, intPercent, message, elapsed, remaining, null, _audioDuration, fallbackSpeed);
             return;
         }
+    }
 
-        // Парсим временные метки для оценки прогресса
-        var timeMatch = TimeRegex().Match(line);
-        if (timeMatch.Success)
+    private static TimeSpan ParseTimeSpanShort(string time)
+    {
+        // Парсит формат mm:ss
+        var parts = time.Split(':');
+        if (parts.Length == 2 && int.TryParse(parts[0], out var minutes) && int.TryParse(parts[1], out var seconds))
         {
-            var currentTime = ParseTimeSpan(timeMatch.Groups[1].Value);
-            if (_audioDuration.TotalSeconds > 0)
-            {
-                var progressPercent = (int)(currentTime.TotalSeconds / _audioDuration.TotalSeconds * 100);
-                progressPercent = Math.Min(progressPercent, 99);
-
-                var elapsed = DateTime.Now - _transcriptionStartTime;
-                var remaining = progressPercent > 0
-                    ? TimeSpan.FromSeconds(elapsed.TotalSeconds * (100 - progressPercent) / progressPercent)
-                    : TimeSpan.Zero;
-
-                var message = remaining.TotalSeconds > 5
-                    ? $"Обработано {FormatTimeSpan(currentTime)} / {FormatTimeSpan(_audioDuration)} (~{FormatTimeSpan(remaining)} осталось)"
-                    : $"Обработано {FormatTimeSpan(currentTime)} / {FormatTimeSpan(_audioDuration)}";
-
-                RaiseProgress(TranscriptionState.Transcribing, progressPercent, message);
-            }
-            else
-            {
-                RaiseProgress(TranscriptionState.Transcribing, -1, $"Обработано {FormatTimeSpan(currentTime)}");
-            }
+            return TimeSpan.FromMinutes(minutes) + TimeSpan.FromSeconds(seconds);
         }
+        return TimeSpan.Zero;
+    }
+
+    private static string BuildProgressMessage(int percent, TimeSpan elapsed, TimeSpan remaining, TimeSpan? processed, TimeSpan? total, double? speed)
+    {
+        // Основное сообщение - только процент и хронометраж
+        // Детали (прошло, скорость, осталось) UI возьмёт из объекта TranscriptionProgress
+        if (processed.HasValue && total.HasValue)
+        {
+            return $"Транскрипция {percent}% • {FormatTimeSpan(processed.Value)} / {FormatTimeSpan(total.Value)}";
+        }
+
+        return $"Транскрипция {percent}%";
     }
 
     private static string FormatTimeSpan(TimeSpan ts)
@@ -394,16 +504,29 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         return TimeSpan.Zero;
     }
 
-    private void RaiseProgress(TranscriptionState state, int percent, string? message)
+    private void RaiseProgress(TranscriptionState state, int percent, string? message,
+        TimeSpan? elapsed = null, TimeSpan? remaining = null,
+        TimeSpan? processed = null, TimeSpan? total = null, double? speed = null)
     {
-        ProgressChanged?.Invoke(this, new TranscriptionProgress(state, percent, message));
+        ProgressChanged?.Invoke(this, new TranscriptionProgress(
+            state, percent, message, elapsed, remaining, processed, total, speed));
     }
 
-    [GeneratedRegex(@"(\d+)%")]
+    // Парсит полный формат прогресса faster-whisper-xxl с -pp:
+    // "  1% |   35/4423 | 00:01<<02:22 | 30.73 audio seconds/s"
+    // Группы: 1=процент, 2=время_прошло, 3=время_осталось, 4=скорость
+    [GeneratedRegex(@"^\s*(\d+)%\s*\|.*?\|\s*(\d{2}:\d{2})<<(\d{2}:\d{2})\s*\|\s*([\d.,]+)\s+audio seconds")]
+    private static partial Regex FullProgressRegex();
+
+    [GeneratedRegex(@"(\d+(?:[.,]\d+)?)%")]
     private static partial Regex PercentRegex();
 
     [GeneratedRegex(@"\[(\d{2}:\d{2}:\d{2})")]
     private static partial Regex TimeRegex();
+
+    // Парсит скорость: "2.5x" или "speed: 2.5x" или "2.5x realtime"
+    [GeneratedRegex(@"(\d+(?:[.,]\d+)?)\s*x")]
+    private static partial Regex SpeedRegex();
 
     // Поддерживает форматы: [00:00:00.000 --> ...] и [00:00.000 --> ...]
     [GeneratedRegex(@"\[(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\]\s*(?:\[([^\]]+)\])?:?\s*(.*)")]
