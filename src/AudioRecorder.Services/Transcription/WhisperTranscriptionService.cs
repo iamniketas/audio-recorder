@@ -448,45 +448,103 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     private static async Task<List<TranscriptionSegment>> ParseTranscriptionFileAsync(string txtPath)
     {
         var segments = new List<TranscriptionSegment>();
-        var lines = await File.ReadAllLinesAsync(txtPath);
+
+        // Читаем файл с поддержкой UTF-8 и автоопределением кодировки
+        var lines = await File.ReadAllLinesAsync(txtPath, Encoding.UTF8);
 
         // Формат с диаризацией:
-        // [00:00:00.000 --> 00:00:02.500] [SPEAKER_00] Текст
+        // [00:00:00.000 --> 00:00:02.500] [SPEAKER_00]: Текст
         // или без диаризации:
         // [00:00:00.000 --> 00:00:02.500] Текст
+        // Текст может быть многострочным (продолжение на следующей строке без timestamp)
         var regex = SegmentRegex();
 
-        foreach (var line in lines)
+        TimeSpan currentStart = TimeSpan.Zero;
+        TimeSpan currentEnd = TimeSpan.Zero;
+        string currentSpeaker = "SPEAKER_00";
+        var currentText = new StringBuilder();
+        bool hasValidSegment = false;
+
+        void AddCurrentSegment()
         {
+            var text = currentText.ToString().Trim();
+            if (!string.IsNullOrWhiteSpace(text) && hasValidSegment)
+            {
+                segments.Add(new TranscriptionSegment(currentStart, currentEnd, currentSpeaker, text));
+            }
+            currentText.Clear();
+            hasValidSegment = false;
+        }
+
+        int lineNum = 0;
+        foreach (var rawLine in lines)
+        {
+            lineNum++;
+            // Убираем BOM и невидимые символы
+            var line = rawLine.Trim('\uFEFF', '\u200B', '\u200C', '\u200D');
+
+            if (string.IsNullOrWhiteSpace(line))
+                continue;
+
             var match = regex.Match(line);
             if (match.Success)
             {
-                var start = ParseTimeSpan(match.Groups[1].Value);
-                var end = ParseTimeSpan(match.Groups[2].Value);
-                var speaker = match.Groups[3].Success ? match.Groups[3].Value : "SPEAKER_00";
-                var text = match.Groups[4].Value.Trim();
+                // Сохраняем предыдущий сегмент
+                AddCurrentSegment();
 
-                if (!string.IsNullOrWhiteSpace(text))
+                // Начинаем новый сегмент
+                var startStr = match.Groups[1].Value;
+                var endStr = match.Groups[2].Value;
+                currentStart = ParseTimeSpan(startStr);
+                currentEnd = ParseTimeSpan(endStr);
+                currentSpeaker = match.Groups[3].Success ? match.Groups[3].Value : "SPEAKER_00";
+                currentText.Append(match.Groups[4].Value.Trim());
+                hasValidSegment = true;
+
+                // Логирование для отладки
+                if (currentStart == TimeSpan.Zero && currentEnd == TimeSpan.Zero)
                 {
-                    segments.Add(new TranscriptionSegment(start, end, speaker, text));
+                    System.Diagnostics.Debug.WriteLine($"[ParseTranscription] Line {lineNum}: Failed to parse timestamps: '{startStr}' --> '{endStr}'");
                 }
             }
-            else if (!string.IsNullOrWhiteSpace(line))
+            else
             {
-                // Простой текст без временных меток
-                segments.Add(new TranscriptionSegment(TimeSpan.Zero, TimeSpan.Zero, "SPEAKER_00", line.Trim()));
+                // Продолжение предыдущего сегмента (многострочный текст)
+                if (hasValidSegment)
+                {
+                    if (currentText.Length > 0)
+                        currentText.Append(' '); // Пробел между строками
+                    currentText.Append(line.Trim());
+                }
+                else
+                {
+                    // Строка без timestamp и без предыдущего сегмента - пропускаем или логируем
+                    System.Diagnostics.Debug.WriteLine($"[ParseTranscription] Line {lineNum}: Skipping orphan line: '{line.Substring(0, Math.Min(50, line.Length))}'");
+                }
             }
         }
+
+        // Добавляем последний сегмент
+        AddCurrentSegment();
+
+        System.Diagnostics.Debug.WriteLine($"[ParseTranscription] Total segments parsed: {segments.Count} from {lineNum} lines");
 
         return segments;
     }
 
     private static TimeSpan ParseTimeSpan(string time)
     {
-        // Формат: 00:00:00.000, 00:00:00,000 или 00:00.000 (mm:ss.fff)
-        time = time.Replace(',', '.');
+        if (string.IsNullOrWhiteSpace(time))
+        {
+            System.Diagnostics.Debug.WriteLine($"[ParseTimeSpan] Empty time string");
+            return TimeSpan.Zero;
+        }
 
-        // Если формат mm:ss.fff (5 символов до точки), добавляем часы
+        // Формат: 00:00:00.000, 00:00:00,000 или 00:00.000 (mm:ss.fff)
+        var originalTime = time;
+        time = time.Trim().Replace(',', '.');
+
+        // Если формат mm:ss.fff (только 2 двоеточия), добавляем часы
         var parts = time.Split('.');
         if (parts.Length == 2)
         {
@@ -499,8 +557,14 @@ public partial class WhisperTranscriptionService : ITranscriptionService
             }
         }
 
-        if (TimeSpan.TryParse(time, out var result))
+        // Пытаемся распарсить
+        if (TimeSpan.TryParse(time, System.Globalization.CultureInfo.InvariantCulture, out var result))
+        {
             return result;
+        }
+
+        // Если не получилось - логируем для отладки
+        System.Diagnostics.Debug.WriteLine($"[ParseTimeSpan] Failed to parse: '{originalTime}' (normalized: '{time}')");
         return TimeSpan.Zero;
     }
 
@@ -528,7 +592,8 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     [GeneratedRegex(@"(\d+(?:[.,]\d+)?)\s*x")]
     private static partial Regex SpeedRegex();
 
-    // Поддерживает форматы: [00:00:00.000 --> ...] и [00:00.000 --> ...]
-    [GeneratedRegex(@"\[(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\]\s*(?:\[([^\]]+)\])?:?\s*(.*)")]
+    // Поддерживает форматы: [00:00:00.000 --> 00:00:02.500] [SPEAKER]: Текст
+    // Более гибкий regex с опциональными пробелами
+    [GeneratedRegex(@"^\s*\[(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\]\s*(?:\[([^\]]+)\])?\s*:?\s*(.*)$")]
     private static partial Regex SegmentRegex();
 }
