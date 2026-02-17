@@ -197,7 +197,7 @@ public sealed class WhisperRuntimeInstallerService
 
         foreach (var entry in entries)
         {
-            var relativePath = entry.Key.Replace('/', Path.DirectorySeparatorChar);
+            var relativePath = (entry.Key ?? string.Empty).Replace('/', Path.DirectorySeparatorChar);
             var fullPath = Path.GetFullPath(Path.Combine(destinationDir, relativePath));
             var destinationRoot = Path.GetFullPath(destinationDir);
 
@@ -208,7 +208,9 @@ public sealed class WhisperRuntimeInstallerService
             if (!string.IsNullOrEmpty(dir))
                 Directory.CreateDirectory(dir);
 
-            entry.WriteToFile(fullPath, new ExtractionOptions { Overwrite = true, PreserveFileTime = true });
+            using var entryStream = entry.OpenEntryStream();
+            using var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            entryStream.CopyTo(fileStream);
 
             index++;
             var percent = (int)(index * 100.0 / total);

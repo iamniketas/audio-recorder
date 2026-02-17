@@ -24,7 +24,7 @@ public sealed class AppUpdateService : IDisposable
     {
         try
         {
-            var source = new GithubSource(ReleasesRepoUrl);
+            var source = new GithubSource(ReleasesRepoUrl, null, false);
             _updateManager = new UpdateManager(source);
         }
         catch
@@ -96,6 +96,6 @@ public sealed class AppUpdateService : IDisposable
 
     public void Dispose()
     {
-        _updateManager?.Dispose();
+        // UpdateManager in current Velopack version is not IDisposable.
     }
 }
