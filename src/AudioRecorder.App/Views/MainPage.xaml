@@ -145,6 +145,40 @@
                                 </ListView>
                             </Border>
                         </StackPanel>
+
+                        <!-- Обновления приложения -->
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="Обновления" />
+
+                            <Button
+                                x:Name="CheckUpdatesButton"
+                                Click="OnCheckUpdatesClicked"
+                                Content="Проверить обновления" />
+
+                            <ProgressBar
+                                x:Name="UpdateProgressBar"
+                                Minimum="0"
+                                Maximum="100"
+                                Height="4"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="UpdateStatusText"
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Text="Статус: не проверялось"
+                                TextWrapping="Wrap" />
+
+                            <Button
+                                x:Name="ApplyUpdateButton"
+                                Click="OnApplyUpdateClicked"
+                                Content="Установить обновление"
+                                Visibility="Collapsed"
+                                Style="{StaticResource AccentButtonStyle}" />
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -313,6 +347,62 @@
                                 Severity="Warning"
                                 Title="Whisper не найден"
                                 Message="Скачайте faster-whisper-xxl" />
+
+                            <Button
+                                x:Name="DownloadRuntimeButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnDownloadRuntimeClicked"
+                                Content="Скачать движок Whisper XXL"
+                                Visibility="Collapsed" />
+
+                            <Button
+                                x:Name="CancelRuntimeDownloadButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnCancelRuntimeDownloadClicked"
+                                Content="Отменить загрузку движка"
+                                Visibility="Collapsed" />
+
+                            <ProgressBar
+                                x:Name="RuntimeDownloadProgressBar"
+                                Minimum="0"
+                                Maximum="100"
+                                Height="4"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="RuntimeDownloadStatusText"
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                TextWrapping="Wrap"
+                                Visibility="Collapsed" />
+
+                            <Button
+                                x:Name="DownloadModelButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnDownloadModelClicked"
+                                Content="Скачать модель Whisper"
+                                Visibility="Collapsed" />
+
+                            <Button
+                                x:Name="CancelModelDownloadButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnCancelModelDownloadClicked"
+                                Content="Отменить загрузку модели"
+                                Visibility="Collapsed" />
+
+                            <ProgressBar
+                                x:Name="ModelDownloadProgressBar"
+                                Minimum="0"
+                                Maximum="100"
+                                Height="4"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="ModelDownloadStatusText"
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                TextWrapping="Wrap"
+                                Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

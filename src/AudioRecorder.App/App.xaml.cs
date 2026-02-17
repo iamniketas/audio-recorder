@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml.Navigation;
+using Velopack;
 
 namespace AudioRecorder
 {
@@ -20,6 +21,8 @@ namespace AudioRecorder
         /// </summary>
         public App()
         {
+            // Required for Velopack install/update hooks.
+            VelopackApp.Build().Run();
             this.InitializeComponent();
         }
 

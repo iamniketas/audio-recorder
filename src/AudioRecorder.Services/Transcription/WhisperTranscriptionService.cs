@@ -23,43 +23,9 @@ public partial class WhisperTranscriptionService : ITranscriptionService
 
     public WhisperTranscriptionService(string? whisperPath = null, string modelName = "large-v2")
     {
-        _whisperPath = whisperPath ?? GetDefaultWhisperPath();
+        _whisperPath = whisperPath ?? WhisperPaths.GetDefaultWhisperPath();
         _modelName = modelName;
     }
-
-    private static string GetDefaultWhisperPath()
-    {
-        // Ищем в tools/ относительно exe
-        var exeDir = AppContext.BaseDirectory;
-        var toolsPath = Path.Combine(exeDir, "tools", "faster-whisper-xxl", "faster-whisper-xxl.exe");
-
-        if (File.Exists(toolsPath))
-            return toolsPath;
-
-        // Ищем в корне проекта (для разработки)
-        var projectRoot = FindProjectRoot(exeDir);
-        if (projectRoot != null)
-        {
-            toolsPath = Path.Combine(projectRoot, "tools", "faster-whisper-xxl", "faster-whisper-xxl.exe");
-            if (File.Exists(toolsPath))
-                return toolsPath;
-        }
-
-        return toolsPath; // Вернём путь даже если не существует
-    }
-
-    private static string? FindProjectRoot(string startDir)
-    {
-        var dir = new DirectoryInfo(startDir);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, "AudioRecorder.sln")))
-                return dir.FullName;
-            dir = dir.Parent;
-        }
-        return null;
-    }
-
     public async Task<TranscriptionResult> TranscribeAsync(string audioPath, CancellationToken ct = default)
     {
         if (!File.Exists(audioPath))
@@ -597,3 +563,4 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     [GeneratedRegex(@"^\s*\[(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\s*-->\s*(\d{2}:\d{2}(?::\d{2})?[.,]\d{3})\]\s*(?:\[([^\]]+)\])?\s*:?\s*(.*)$")]
     private static partial Regex SegmentRegex();
 }
+

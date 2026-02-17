@@ -2,8 +2,10 @@ using AudioRecorder.Core.Models;
 using AudioRecorder.Core.Services;
 using AudioRecorder.Services.Audio;
 using AudioRecorder.Services.Notifications;
+using AudioRecorder.Services.Models;
 using AudioRecorder.Services.Settings;
 using AudioRecorder.Services.Transcription;
+using AudioRecorder.Services.Updates;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,6 +13,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Text;
+using Velopack;
 
 namespace AudioRecorder.Views;
 
@@ -152,6 +155,9 @@ public sealed partial class MainPage : Page
     private readonly ITranscriptionService _transcriptionService;
     private readonly ISettingsService _settingsService;
     private readonly IAudioPlaybackService _playbackService;
+    private readonly AppUpdateService _appUpdateService;
+    private readonly WhisperRuntimeInstallerService _runtimeInstallerService;
+    private readonly WhisperModelDownloadService _modelDownloadService;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherQueueTimer _updateTimer;
     private string? _lastRecordingPath;
@@ -160,6 +166,13 @@ public sealed partial class MainPage : Page
     private bool _isSettingsPanelVisible = true;
     private TranscriptionSegmentViewModel? _playingSegment;
     private bool _hasUnsavedChanges;
+    private bool _isRuntimeDownloadInProgress;
+    private CancellationTokenSource? _runtimeDownloadCts;
+    private bool _isModelDownloadInProgress;
+    private CancellationTokenSource? _modelDownloadCts;
+    private bool _isUpdateFlowRunning;
+    private UpdateInfo? _availableUpdateInfo;
+    private VelopackAsset? _readyToApplyRelease;
     // Словарь: оригинальный ID спикера → текущее имя
     private readonly Dictionary<string, string> _speakerNameMap = new();
 
@@ -181,6 +194,9 @@ public sealed partial class MainPage : Page
         _settingsService = new LocalSettingsService();
         _playbackService = new AudioPlaybackService();
         _playbackService.StateChanged += OnPlaybackStateChanged;
+        _appUpdateService = new AppUpdateService();
+        _runtimeInstallerService = new WhisperRuntimeInstallerService();
+        _modelDownloadService = new WhisperModelDownloadService();
 
         NotificationService.Initialize();
 
@@ -191,12 +207,317 @@ public sealed partial class MainPage : Page
         _updateTimer.Tick += (s, e) => UpdateRecordingInfo();
 
         Loaded += OnPageLoaded;
+        Unloaded += (s, e) =>
+        {
+            _runtimeDownloadCts?.Cancel();
+            _runtimeDownloadCts?.Dispose();
+            _runtimeDownloadCts = null;
+            _modelDownloadCts?.Cancel();
+            _modelDownloadCts?.Dispose();
+            _modelDownloadCts = null;
+            _appUpdateService.Dispose();
+        };
     }
 
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         await LoadAudioSourcesAsync();
         LoadOutputFolderSetting();
+
+        if (_runtimeInstallerService.IsRuntimeInstalled())
+        {
+            WhisperPaths.RegisterEnvironmentVariables(_runtimeInstallerService.GetRuntimeExePath(), "large-v2");
+        }
+
+        _ = CheckForUpdatesAsync(userInitiated: false);
+        UpdateTranscriptionAvailabilityUi();
+        _ = TryAutoSetupWhisperAsync();
+    }
+
+    private async Task TryAutoSetupWhisperAsync()
+    {
+        if (_isRuntimeDownloadInProgress || _isModelDownloadInProgress)
+            return;
+
+        if (!_runtimeInstallerService.IsRuntimeInstalled())
+        {
+            await StartRuntimeDownloadAsync(autoStarted: true);
+        }
+
+        if (_runtimeInstallerService.IsRuntimeInstalled() && !_modelDownloadService.IsModelInstalled())
+        {
+            await StartModelDownloadAsync(autoStarted: true);
+        }
+    }
+
+    private void UpdateTranscriptionAvailabilityUi()
+    {
+        var whisperAvailable = _transcriptionService.IsWhisperAvailable;
+        var modelInstalled = _modelDownloadService.IsModelInstalled();
+
+        DownloadRuntimeButton.Visibility = Visibility.Collapsed;
+        CancelRuntimeDownloadButton.Visibility = Visibility.Collapsed;
+        RuntimeDownloadProgressBar.Visibility = Visibility.Collapsed;
+        RuntimeDownloadStatusText.Visibility = Visibility.Collapsed;
+        DownloadModelButton.Visibility = Visibility.Collapsed;
+        CancelModelDownloadButton.Visibility = Visibility.Collapsed;
+        ModelDownloadProgressBar.Visibility = Visibility.Collapsed;
+        ModelDownloadStatusText.Visibility = Visibility.Collapsed;
+
+        if (!whisperAvailable)
+        {
+            WhisperWarningBar.Title = "Whisper не найден";
+            WhisperWarningBar.Message = "Скачайте движок faster-whisper-xxl. Он будет установлен в LocalAppData.";
+            WhisperWarningBar.IsOpen = true;
+
+            TranscribeButton.IsEnabled = false;
+
+            DownloadRuntimeButton.Visibility = _isRuntimeDownloadInProgress ? Visibility.Collapsed : Visibility.Visible;
+            CancelRuntimeDownloadButton.Visibility = _isRuntimeDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+            RuntimeDownloadProgressBar.Visibility = _isRuntimeDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+            RuntimeDownloadStatusText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        if (modelInstalled)
+        {
+            WhisperWarningBar.IsOpen = false;
+            TranscribeButton.IsEnabled = true;
+            return;
+        }
+
+        WhisperWarningBar.Title = "Модель Whisper не загружена";
+        WhisperWarningBar.Message = "Скачайте модель large-v2. Это требуется один раз.";
+        WhisperWarningBar.IsOpen = true;
+        TranscribeButton.IsEnabled = false;
+
+        DownloadModelButton.Visibility = _isModelDownloadInProgress ? Visibility.Collapsed : Visibility.Visible;
+        CancelModelDownloadButton.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+        ModelDownloadProgressBar.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+        ModelDownloadStatusText.Visibility = Visibility.Visible;
+    }
+
+    private async Task StartModelDownloadAsync(bool autoStarted)
+    {
+        if (_isModelDownloadInProgress)
+            return;
+
+        _isModelDownloadInProgress = true;
+        _modelDownloadCts = new CancellationTokenSource();
+
+        DownloadModelButton.Visibility = Visibility.Collapsed;
+        CancelModelDownloadButton.Visibility = Visibility.Visible;
+        ModelDownloadProgressBar.Visibility = Visibility.Visible;
+        ModelDownloadProgressBar.Value = 0;
+        ModelDownloadStatusText.Visibility = Visibility.Visible;
+        ModelDownloadStatusText.Text = autoStarted
+            ? "Первая настройка: скачиваем модель Whisper..."
+            : "Скачиваем модель Whisper...";
+
+        try
+        {
+            var result = await _modelDownloadService.DownloadModelAsync(
+                progress =>
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        ModelDownloadProgressBar.Value = progress.Percent;
+                        var downloadedMb = progress.DownloadedBytes / (1024.0 * 1024.0);
+                        var totalMb = progress.TotalBytes > 0 ? progress.TotalBytes / (1024.0 * 1024.0) : 0;
+
+                        ModelDownloadStatusText.Text = progress.TotalBytes > 0
+                            ? $"Скачивание модели: {progress.Percent}% ({downloadedMb:F1}/{totalMb:F1} MB), файл: {progress.CurrentFile}"
+                            : $"Скачивание модели: файл {progress.CurrentFile}";
+                    });
+                },
+                _modelDownloadCts.Token);
+
+            ModelDownloadStatusText.Text = result.StatusMessage;
+            if (result.Success)
+            {
+                WhisperPaths.RegisterEnvironmentVariables(_modelDownloadService.GetWhisperPath(), "large-v2");
+            }
+        }
+        finally
+        {
+            _modelDownloadCts?.Dispose();
+            _modelDownloadCts = null;
+            _isModelDownloadInProgress = false;
+            UpdateTranscriptionAvailabilityUi();
+        }
+    }
+
+    private async void OnDownloadModelClicked(object sender, RoutedEventArgs e)
+    {
+        await StartModelDownloadAsync(autoStarted: false);
+    }
+
+    private void OnCancelModelDownloadClicked(object sender, RoutedEventArgs e)
+    {
+        _modelDownloadCts?.Cancel();
+    }
+
+    private async Task StartRuntimeDownloadAsync(bool autoStarted)
+    {
+        if (_isRuntimeDownloadInProgress)
+            return;
+
+        _isRuntimeDownloadInProgress = true;
+        _runtimeDownloadCts = new CancellationTokenSource();
+
+        DownloadRuntimeButton.Visibility = Visibility.Collapsed;
+        CancelRuntimeDownloadButton.Visibility = Visibility.Visible;
+        RuntimeDownloadProgressBar.Visibility = Visibility.Visible;
+        RuntimeDownloadProgressBar.Value = 0;
+        RuntimeDownloadStatusText.Visibility = Visibility.Visible;
+        RuntimeDownloadStatusText.Text = autoStarted
+            ? "Первая настройка: скачиваем движок Whisper XXL..."
+            : "Скачиваем движок Whisper XXL...";
+
+        try
+        {
+            var result = await _runtimeInstallerService.InstallAsync(
+                progress =>
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        RuntimeDownloadProgressBar.Value = progress.Percent;
+                        RuntimeDownloadStatusText.Text = progress.StatusMessage;
+                    });
+                },
+                _runtimeDownloadCts.Token);
+
+            RuntimeDownloadStatusText.Text = result.StatusMessage;
+
+            if (result.Success && !string.IsNullOrWhiteSpace(result.WhisperExePath))
+            {
+                WhisperPaths.RegisterEnvironmentVariables(result.WhisperExePath, "large-v2");
+            }
+        }
+        finally
+        {
+            _runtimeDownloadCts?.Dispose();
+            _runtimeDownloadCts = null;
+            _isRuntimeDownloadInProgress = false;
+            UpdateTranscriptionAvailabilityUi();
+        }
+
+        if (_runtimeInstallerService.IsRuntimeInstalled() && !_modelDownloadService.IsModelInstalled())
+        {
+            await StartModelDownloadAsync(autoStarted: true);
+        }
+    }
+
+    private async void OnDownloadRuntimeClicked(object sender, RoutedEventArgs e)
+    {
+        await StartRuntimeDownloadAsync(autoStarted: false);
+    }
+
+    private void OnCancelRuntimeDownloadClicked(object sender, RoutedEventArgs e)
+    {
+        _runtimeDownloadCts?.Cancel();
+    }
+
+    private async Task CheckForUpdatesAsync(bool userInitiated)
+    {
+        if (_isUpdateFlowRunning)
+            return;
+
+        _isUpdateFlowRunning = true;
+        SetUpdateUiBusy(true);
+        _availableUpdateInfo = null;
+        _readyToApplyRelease = null;
+        ApplyUpdateButton.Visibility = Visibility.Collapsed;
+        UpdateProgressBar.Visibility = Visibility.Collapsed;
+        UpdateProgressBar.Value = 0;
+
+        try
+        {
+            UpdateStatusText.Text = "Проверка обновлений...";
+            var checkResult = await _appUpdateService.CheckForUpdatesAsync();
+
+            if (!checkResult.Success)
+            {
+                UpdateStatusText.Text = checkResult.StatusMessage;
+                return;
+            }
+
+            if (!checkResult.UpdateAvailable || checkResult.UpdateInfo == null)
+            {
+                UpdateStatusText.Text = userInitiated
+                    ? "Обновлений нет. У вас последняя версия."
+                    : "Автопроверка: обновлений нет.";
+                return;
+            }
+
+            _availableUpdateInfo = checkResult.UpdateInfo;
+            UpdateStatusText.Text = $"{checkResult.StatusMessage} Скачивание...";
+            UpdateProgressBar.Visibility = Visibility.Visible;
+            UpdateProgressBar.Value = 0;
+
+            var downloadResult = await _appUpdateService.DownloadUpdateAsync(
+                _availableUpdateInfo,
+                progress =>
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        UpdateProgressBar.Visibility = Visibility.Visible;
+                        UpdateProgressBar.Value = Math.Max(0, Math.Min(100, progress));
+                        UpdateStatusText.Text = $"Скачивание обновления: {progress}%";
+                    });
+                });
+
+            if (!downloadResult.Success || downloadResult.ReadyToApplyRelease == null)
+            {
+                UpdateStatusText.Text = downloadResult.StatusMessage;
+                return;
+            }
+
+            _readyToApplyRelease = downloadResult.ReadyToApplyRelease;
+            UpdateStatusText.Text = downloadResult.StatusMessage;
+            ApplyUpdateButton.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            SetUpdateUiBusy(false);
+            _isUpdateFlowRunning = false;
+        }
+    }
+
+    private void SetUpdateUiBusy(bool isBusy)
+    {
+        CheckUpdatesButton.IsEnabled = !isBusy;
+    }
+
+    private async void OnCheckUpdatesClicked(object sender, RoutedEventArgs e)
+    {
+        await CheckForUpdatesAsync(userInitiated: true);
+    }
+
+    private async void OnApplyUpdateClicked(object sender, RoutedEventArgs e)
+    {
+        if (_readyToApplyRelease == null)
+            return;
+
+        var dialog = new ContentDialog
+        {
+            Title = "Установить обновление",
+            Content = "Приложение будет перезапущено для завершения установки.",
+            PrimaryButtonText = "Установить и перезапустить",
+            CloseButtonText = "Отмена",
+            DefaultButton = ContentDialogButton.Primary,
+            XamlRoot = Content.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result != ContentDialogResult.Primary)
+            return;
+
+        var started = _appUpdateService.ApplyUpdateAndRestart(_readyToApplyRelease);
+        if (!started)
+        {
+            await ShowErrorDialogAsync("Не удалось применить обновление.");
+        }
     }
 
     private void LoadOutputFolderSetting()
@@ -446,15 +767,7 @@ public sealed partial class MainPage : Page
         SpeakersPanel.Visibility = Visibility.Collapsed;
         SaveTranscriptionButton.Visibility = Visibility.Collapsed;
 
-        if (!_transcriptionService.IsWhisperAvailable)
-        {
-            WhisperWarningBar.IsOpen = true;
-            TranscribeButton.IsEnabled = false;
-        }
-        else
-        {
-            WhisperWarningBar.IsOpen = false;
-        }
+        UpdateTranscriptionAvailabilityUi();
     }
 
     private async void OnTranscribeClicked(object sender, RoutedEventArgs e)
