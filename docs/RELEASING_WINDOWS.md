@@ -16,8 +16,9 @@
 ## Быстрый запуск
 Самый простой вариант:
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\release.ps1 0.2.3
+powershell -ExecutionPolicy Bypass -File .\release.ps1
 ```
+Скрипт сам возьмет последний тег `vX.Y.Z` и выпустит следующую patch-версию (`X.Y.(Z+1)`).
 
 Полная команда:
 ```powershell
