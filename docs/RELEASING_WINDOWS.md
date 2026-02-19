@@ -38,9 +38,11 @@ powershell -ExecutionPolicy Bypass -File .\tools\release\publish-github-release.
 - `-NoDownloadExisting` (если не нужны delta-пакеты)
 - `-NoUpload` (только локальная упаковка)
 - `-PreRelease` (пометить GitHub Release как pre-release)
-- `-Tag v0.2.3` и `-ReleaseName "AudioRecorder 0.2.3"`
+- `-Tag v0.2.3` и `-ReleaseName "Contora 0.2.3"`
 - `-OutputRoot artifacts` (по умолчанию)
 
 ## Где искать результат
 - Publish: `artifacts/publish/<version>/<runtime>/`
 - Velopack packages: `artifacts/releases/<version>/`
+
+

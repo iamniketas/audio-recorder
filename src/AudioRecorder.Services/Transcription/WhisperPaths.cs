@@ -2,10 +2,15 @@ namespace AudioRecorder.Services.Transcription;
 
 public static class WhisperPaths
 {
-    public const string EnvWhisperExe = "AUDIORECORDER_WHISPER_EXE";
-    public const string EnvWhisperRoot = "AUDIORECORDER_WHISPER_ROOT";
-    public const string EnvWhisperModelsRoot = "AUDIORECORDER_WHISPER_MODELS_DIR";
-    public const string EnvWhisperModelLargeV2 = "AUDIORECORDER_WHISPER_MODEL_LARGE_V2_DIR";
+    public const string EnvWhisperExe = "CONTORA_WHISPER_EXE";
+    public const string EnvWhisperRoot = "CONTORA_WHISPER_ROOT";
+    public const string EnvWhisperModelsRoot = "CONTORA_WHISPER_MODELS_DIR";
+    public const string EnvWhisperModelLargeV2 = "CONTORA_WHISPER_MODEL_LARGE_V2_DIR";
+
+    private const string LegacyEnvWhisperExe = "AUDIORECORDER_WHISPER_EXE";
+    private const string LegacyEnvWhisperRoot = "AUDIORECORDER_WHISPER_ROOT";
+    private const string LegacyEnvWhisperModelsRoot = "AUDIORECORDER_WHISPER_MODELS_DIR";
+    private const string LegacyEnvWhisperModelLargeV2 = "AUDIORECORDER_WHISPER_MODEL_LARGE_V2_DIR";
 
     private const string RuntimeFolderName = "faster-whisper-xxl";
     private const string ModelDirPrefix = "faster-whisper-";
@@ -19,13 +24,17 @@ public static class WhisperPaths
 
     public static string GetDefaultWhisperPath()
     {
-        var envPath = Environment.GetEnvironmentVariable(EnvWhisperExe);
+        var envPath = GetEnvironmentVariableWithLegacy(EnvWhisperExe, LegacyEnvWhisperExe);
         if (!string.IsNullOrWhiteSpace(envPath))
             return envPath;
 
         var canonicalPath = GetCanonicalWhisperPath();
         if (File.Exists(canonicalPath))
             return canonicalPath;
+
+        var legacyCanonicalPath = GetLegacyCanonicalWhisperPath();
+        if (File.Exists(legacyCanonicalPath))
+            return legacyCanonicalPath;
 
         // 1) Production: рядом с приложением.
         var exeDir = AppContext.BaseDirectory;
@@ -49,7 +58,7 @@ public static class WhisperPaths
     public static string GetCanonicalRuntimeRoot()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        return Path.Combine(appDataPath, "AudioRecorder", "runtime", RuntimeFolderName);
+        return Path.Combine(appDataPath, "Contora", "runtime", RuntimeFolderName);
     }
 
     public static string GetCanonicalWhisperPath()
@@ -93,6 +102,10 @@ public static class WhisperPaths
         SetEnvBothScopes(EnvWhisperRoot, rootDir);
         SetEnvBothScopes(EnvWhisperModelsRoot, modelsDir);
         SetEnvBothScopes(EnvWhisperModelLargeV2, modelDir);
+        SetEnvBothScopes(LegacyEnvWhisperExe, whisperPath);
+        SetEnvBothScopes(LegacyEnvWhisperRoot, rootDir);
+        SetEnvBothScopes(LegacyEnvWhisperModelsRoot, modelsDir);
+        SetEnvBothScopes(LegacyEnvWhisperModelLargeV2, modelDir);
     }
 
     private static void SetEnvBothScopes(string key, string value)
@@ -113,11 +126,27 @@ public static class WhisperPaths
         var dir = new DirectoryInfo(startDir);
         while (dir != null)
         {
-            if (File.Exists(Path.Combine(dir.FullName, "AudioRecorder.sln")))
+            if (File.Exists(Path.Combine(dir.FullName, "Contora.sln")) ||
+                File.Exists(Path.Combine(dir.FullName, "AudioRecorder.sln")))
                 return dir.FullName;
             dir = dir.Parent;
         }
 
         return null;
+    }
+
+    private static string GetLegacyCanonicalWhisperPath()
+    {
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(appDataPath, "AudioRecorder", "runtime", RuntimeFolderName, "faster-whisper-xxl.exe");
+    }
+
+    private static string? GetEnvironmentVariableWithLegacy(string key, string legacyKey)
+    {
+        var current = Environment.GetEnvironmentVariable(key);
+        if (!string.IsNullOrWhiteSpace(current))
+            return current;
+
+        return Environment.GetEnvironmentVariable(legacyKey);
     }
 }

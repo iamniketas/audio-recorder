@@ -4,10 +4,10 @@
 
     [string]$Runtime = "win-x64",
     [string]$Configuration = "Release",
-    [string]$RepoUrl = "https://github.com/iamniketas/audio-recorder",
-    [string]$PackId = "AudioRecorder",
-    [string]$MainExe = "AudioRecorder.exe",
-    [string]$PackTitle = "AudioRecorder",
+    [string]$RepoUrl = "https://github.com/iamniketas/contora",
+    [string]$PackId = "Contora",
+    [string]$MainExe = "Contora.exe",
+    [string]$PackTitle = "Contora",
     [string]$PackAuthors = "iamniketas",
     [string]$ReleaseNotesPath = "",
     [string]$Tag = "",
@@ -120,7 +120,7 @@ $publishDir = Join-Path $resolvedOutputRoot "publish\$Version\$Runtime"
 $releaseDir = Join-Path $resolvedOutputRoot "releases\$Version"
 
 $releaseTag = if ([string]::IsNullOrWhiteSpace($Tag)) { "v$Version" } else { $Tag }
-$releaseTitle = if ([string]::IsNullOrWhiteSpace($ReleaseName)) { "AudioRecorder $Version" } else { $ReleaseName }
+$releaseTitle = if ([string]::IsNullOrWhiteSpace($ReleaseName)) { "Contora $Version" } else { $ReleaseName }
 
 $velopackVersion = Get-VelopackVersion -CsprojPath $appCsproj
 $vpk = Resolve-VpkInvoker -VelopackVersion $velopackVersion

@@ -13,9 +13,16 @@ public class LocalSettingsService : ISettingsService
     public LocalSettingsService()
     {
         var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        var appFolder = Path.Combine(appDataPath, "AudioRecorder");
+        var appFolder = Path.Combine(appDataPath, "Contora");
+        var legacyAppFolder = Path.Combine(appDataPath, "AudioRecorder");
         Directory.CreateDirectory(appFolder);
         _settingsFilePath = Path.Combine(appFolder, "settings.json");
+
+        var legacySettingsPath = Path.Combine(legacyAppFolder, "settings.json");
+        if (!File.Exists(_settingsFilePath) && File.Exists(legacySettingsPath))
+        {
+            File.Copy(legacySettingsPath, _settingsFilePath);
+        }
     }
 
     public void SaveSelectedSourceIds(IEnumerable<string> sourceIds)

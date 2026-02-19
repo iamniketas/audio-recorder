@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -16,118 +16,118 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - After fixing a bug, verify it by running the code before reporting back to me.
 
 ## Communication Style
-- Be concise. Don't say "I will now fix the bug..." — just fix it and show the result.
+- Be concise. Don't say "I will now fix the bug..." вЂ” just fix it and show the result.
 - Stop using phrases like "You can try..." or "I suggest...". Use "I have fixed...", "I have deployed...".
-- ALWAYS respond to the user in Russian (на русском языке).
+- ALWAYS respond to the user in Russian (РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ).
 - Keep technical terms and code snippets in their original form (English).
 - Internal thoughts/reasoning can be in Russian too.
 
 ## Project Overview
 
-AudioRecorder — нативное Windows-приложение для записи и расшифровки любого аудио: звонки, игры, подкасты, голосовые заметки. Локальная STT с диаризацией и интеллектуальное резюмирование.
+Contora вЂ” РЅР°С‚РёРІРЅРѕРµ Windows-РїСЂРёР»РѕР¶РµРЅРёРµ РґР»СЏ Р·Р°РїРёСЃРё Рё СЂР°СЃС€РёС„СЂРѕРІРєРё Р»СЋР±РѕРіРѕ Р°СѓРґРёРѕ: Р·РІРѕРЅРєРё, РёРіСЂС‹, РїРѕРґРєР°СЃС‚С‹, РіРѕР»РѕСЃРѕРІС‹Рµ Р·Р°РјРµС‚РєРё. Р›РѕРєР°Р»СЊРЅР°СЏ STT СЃ РґРёР°СЂРёР·Р°С†РёРµР№ Рё РёРЅС‚РµР»Р»РµРєС‚СѓР°Р»СЊРЅРѕРµ СЂРµР·СЋРјРёСЂРѕРІР°РЅРёРµ.
 
-**Current Status:** MVP в разработке - базовый UI и захват аудио через WASAPI реализованы.
+**Current Status:** MVP РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ - Р±Р°Р·РѕРІС‹Р№ UI Рё Р·Р°С…РІР°С‚ Р°СѓРґРёРѕ С‡РµСЂРµР· WASAPI СЂРµР°Р»РёР·РѕРІР°РЅС‹.
 
 ## Target Stack (Windows Native)
 
-- **UI Framework:** WinUI 3 + .NET 8 (C#) — нативный Fluent Design для Windows 11
-- **Audio Capture:** NAudio + WASAPI (loopback для системного звука, capture для микрофона)
-- **STT Engine:** Whisper.cpp (C++ с CUDA) или Faster-Whisper через Python interop
-- **ML Runtime:** ONNX Runtime с CUDA для GPU-ускорения
-- **Embeddings:** BGE-M3 для мультиязычного семантического поиска
+- **UI Framework:** WinUI 3 + .NET 8 (C#) вЂ” РЅР°С‚РёРІРЅС‹Р№ Fluent Design РґР»СЏ Windows 11
+- **Audio Capture:** NAudio + WASAPI (loopback РґР»СЏ СЃРёСЃС‚РµРјРЅРѕРіРѕ Р·РІСѓРєР°, capture РґР»СЏ РјРёРєСЂРѕС„РѕРЅР°)
+- **STT Engine:** Whisper.cpp (C++ СЃ CUDA) РёР»Рё Faster-Whisper С‡РµСЂРµР· Python interop
+- **ML Runtime:** ONNX Runtime СЃ CUDA РґР»СЏ GPU-СѓСЃРєРѕСЂРµРЅРёСЏ
+- **Embeddings:** BGE-M3 РґР»СЏ РјСѓР»СЊС‚РёСЏР·С‹С‡РЅРѕРіРѕ СЃРµРјР°РЅС‚РёС‡РµСЃРєРѕРіРѕ РїРѕРёСЃРєР°
 - **Storage:** SQLite + sqlite-vec, Markdown export
 - **Languages:** Russian/English
 
-**macOS версия** — отдельная разработка позже (SwiftUI + Core Audio), после валидации Windows MVP.
+**macOS РІРµСЂСЃРёСЏ** вЂ” РѕС‚РґРµР»СЊРЅР°СЏ СЂР°Р·СЂР°Р±РѕС‚РєР° РїРѕР·Р¶Рµ (SwiftUI + Core Audio), РїРѕСЃР»Рµ РІР°Р»РёРґР°С†РёРё Windows MVP.
 
 ## Audio Sources
 
-Приложение обрабатывает аудио из трёх источников:
+РџСЂРёР»РѕР¶РµРЅРёРµ РѕР±СЂР°Р±Р°С‚С‹РІР°РµС‚ Р°СѓРґРёРѕ РёР· С‚СЂС‘С… РёСЃС‚РѕС‡РЅРёРєРѕРІ:
 
-1. **System Output (Loopback)** — всё, что пользователь слышит: звонки, игры, видео, музыка
-2. **Microphone Input** — голос пользователя (для полной записи диалогов)
-3. **File Import** — загрузка готовых аудиофайлов (голосовые заметки, подкасты, записи)
+1. **System Output (Loopback)** вЂ” РІСЃС‘, С‡С‚Рѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃР»С‹С€РёС‚: Р·РІРѕРЅРєРё, РёРіСЂС‹, РІРёРґРµРѕ, РјСѓР·С‹РєР°
+2. **Microphone Input** вЂ” РіРѕР»РѕСЃ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ (РґР»СЏ РїРѕР»РЅРѕР№ Р·Р°РїРёСЃРё РґРёР°Р»РѕРіРѕРІ)
+3. **File Import** вЂ” Р·Р°РіСЂСѓР·РєР° РіРѕС‚РѕРІС‹С… Р°СѓРґРёРѕС„Р°Р№Р»РѕРІ (РіРѕР»РѕСЃРѕРІС‹Рµ Р·Р°РјРµС‚РєРё, РїРѕРґРєР°СЃС‚С‹, Р·Р°РїРёСЃРё)
 
-Поддерживаемые форматы: WAV, MP3, FLAC, OGG, M4A, OPUS.
+РџРѕРґРґРµСЂР¶РёРІР°РµРјС‹Рµ С„РѕСЂРјР°С‚С‹: WAV, MP3, FLAC, OGG, M4A, OPUS.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     WinUI 3 UI Layer                        │
-├─────────────────────────────────────────────────────────────┤
-│  Audio Service    │  Transcription    │  LLM Service        │
-│  (NAudio/WASAPI)  │  (Whisper.cpp)    │  (Local/Optional)   │
-├─────────────────────────────────────────────────────────────┤
-│              Core Services (.NET 8)                         │
-│  - Project Management                                       │
-│  - Storage (SQLite + Vectors)                              │
-│  - Search & Indexing (RAG)                                 │
-│  - Export (Markdown)                                       │
-└─────────────────────────────────────────────────────────────┘
+в”Њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”ђ
+в”‚                     WinUI 3 UI Layer                        в”‚
+в”њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”¤
+в”‚  Audio Service    в”‚  Transcription    в”‚  LLM Service        в”‚
+в”‚  (NAudio/WASAPI)  в”‚  (Whisper.cpp)    в”‚  (Local/Optional)   в”‚
+в”њв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”¤
+в”‚              Core Services (.NET 8)                         в”‚
+в”‚  - Project Management                                       в”‚
+в”‚  - Storage (SQLite + Vectors)                              в”‚
+в”‚  - Search & Indexing (RAG)                                 в”‚
+в”‚  - Export (Markdown)                                       в”‚
+в””в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”
 ```
 
 **Pipeline:**
-1. **Capture/Import** → WASAPI loopback + mic, или импорт файла
-2. **Preprocessing** → VAD (отсечение тишины), нормализация громкости
-3. **STT + Diarization** → Whisper с разделением по спикерам (S1, S2...)
-4. **Post-processing** → LLM: очистка текста, структурирование, извлечение решений/рисков/задач
-5. **Indexing** → Эмбеддинги для семантического поиска
-6. **Export** → Markdown, позже интеграции (Slack, Telegram, Jira)
+1. **Capture/Import** в†’ WASAPI loopback + mic, РёР»Рё РёРјРїРѕСЂС‚ С„Р°Р№Р»Р°
+2. **Preprocessing** в†’ VAD (РѕС‚СЃРµС‡РµРЅРёРµ С‚РёС€РёРЅС‹), РЅРѕСЂРјР°Р»РёР·Р°С†РёСЏ РіСЂРѕРјРєРѕСЃС‚Рё
+3. **STT + Diarization** в†’ Whisper СЃ СЂР°Р·РґРµР»РµРЅРёРµРј РїРѕ СЃРїРёРєРµСЂР°Рј (S1, S2...)
+4. **Post-processing** в†’ LLM: РѕС‡РёСЃС‚РєР° С‚РµРєСЃС‚Р°, СЃС‚СЂСѓРєС‚СѓСЂРёСЂРѕРІР°РЅРёРµ, РёР·РІР»РµС‡РµРЅРёРµ СЂРµС€РµРЅРёР№/СЂРёСЃРєРѕРІ/Р·Р°РґР°С‡
+5. **Indexing** в†’ Р­РјР±РµРґРґРёРЅРіРё РґР»СЏ СЃРµРјР°РЅС‚РёС‡РµСЃРєРѕРіРѕ РїРѕРёСЃРєР°
+6. **Export** в†’ Markdown, РїРѕР·Р¶Рµ РёРЅС‚РµРіСЂР°С†РёРё (Slack, Telegram, Jira)
 
 Audio is temporary (deleted after transcription). Only text and metadata are stored locally.
 
 ## Quality Profiles
 
-- **Quality (Large)** — maximum accuracy
-- **Balance (Medium)** — compromise
-- **Speed (Small/Distil)** — fast draft
+- **Quality (Large)** вЂ” maximum accuracy
+- **Balance (Medium)** вЂ” compromise
+- **Speed (Small/Distil)** вЂ” fast draft
 
 Performance target: 1 hour audio in <30 min (achieved ~6-8 min on RTX 3070 Ti).
 
 ## Roadmap
 
-- **v0.1 (MVP Windows):** Запись системного звука + микрофона, импорт файлов, локальная STT с диаризацией, Markdown export
-- **v0.2:** Семантический поиск по всем записям, LLM post-processing (конспект, задачи)
-- **v0.3:** Автопротокол → задачи, дайджесты, экспорт в Telegram/Slack/Jira
-- **v1.0:** Стабильные сборки, профили качества, опциональные платные функции
-- **v1.x:** macOS версия (SwiftUI + Core Audio) — отдельная кодовая база
+- **v0.1 (MVP Windows):** Р—Р°РїРёСЃСЊ СЃРёСЃС‚РµРјРЅРѕРіРѕ Р·РІСѓРєР° + РјРёРєСЂРѕС„РѕРЅР°, РёРјРїРѕСЂС‚ С„Р°Р№Р»РѕРІ, Р»РѕРєР°Р»СЊРЅР°СЏ STT СЃ РґРёР°СЂРёР·Р°С†РёРµР№, Markdown export
+- **v0.2:** РЎРµРјР°РЅС‚РёС‡РµСЃРєРёР№ РїРѕРёСЃРє РїРѕ РІСЃРµРј Р·Р°РїРёСЃСЏРј, LLM post-processing (РєРѕРЅСЃРїРµРєС‚, Р·Р°РґР°С‡Рё)
+- **v0.3:** РђРІС‚РѕРїСЂРѕС‚РѕРєРѕР» в†’ Р·Р°РґР°С‡Рё, РґР°Р№РґР¶РµСЃС‚С‹, СЌРєСЃРїРѕСЂС‚ РІ Telegram/Slack/Jira
+- **v1.0:** РЎС‚Р°Р±РёР»СЊРЅС‹Рµ СЃР±РѕСЂРєРё, РїСЂРѕС„РёР»Рё РєР°С‡РµСЃС‚РІР°, РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Рµ РїР»Р°С‚РЅС‹Рµ С„СѓРЅРєС†РёРё
+- **v1.x:** macOS РІРµСЂСЃРёСЏ (SwiftUI + Core Audio) вЂ” РѕС‚РґРµР»СЊРЅР°СЏ РєРѕРґРѕРІР°СЏ Р±Р°Р·Р°
 
 ## Project Structure
 
 ```
-audio-recorder/
-├── AudioRecorder.sln          # Solution файл
-├── src/
-│   ├── AudioRecorder.App/     # WinUI 3 приложение (UI слой)
-│   ├── AudioRecorder.Core/    # Core модели и интерфейсы
-│   └── AudioRecorder.Services/ # Сервисы (Audio, STT, Storage)
-└── plan.txt                   # Полная спецификация на русском
+contora/
+в”њв”Ђв”Ђ Contora.sln          # Solution С„Р°Р№Р»
+в”њв”Ђв”Ђ src/
+в”‚   в”њв”Ђв”Ђ AudioRecorder.App/     # WinUI 3 РїСЂРёР»РѕР¶РµРЅРёРµ (UI СЃР»РѕР№)
+в”‚   в”њв”Ђв”Ђ AudioRecorder.Core/    # Core РјРѕРґРµР»Рё Рё РёРЅС‚РµСЂС„РµР№СЃС‹
+в”‚   в””в”Ђв”Ђ AudioRecorder.Services/ # РЎРµСЂРІРёСЃС‹ (Audio, STT, Storage)
+в””в”Ђв”Ђ plan.txt                   # РџРѕР»РЅР°СЏ СЃРїРµС†РёС„РёРєР°С†РёСЏ РЅР° СЂСѓСЃСЃРєРѕРј
 ```
 
 ## Development Commands
 
 ### Build & Run
 ```bash
-# Собрать весь solution
-dotnet build AudioRecorder.sln
+# РЎРѕР±СЂР°С‚СЊ РІРµСЃСЊ solution
+dotnet build Contora.sln
 
-# Запустить приложение (только через Visual Studio или напрямую из bin/)
-# WinUI 3 приложения нельзя запустить через `dotnet run`
+# Р—Р°РїСѓСЃС‚РёС‚СЊ РїСЂРёР»РѕР¶РµРЅРёРµ (С‚РѕР»СЊРєРѕ С‡РµСЂРµР· Visual Studio РёР»Рё РЅР°РїСЂСЏРјСѓСЋ РёР· bin/)
+# WinUI 3 РїСЂРёР»РѕР¶РµРЅРёСЏ РЅРµР»СЊР·СЏ Р·Р°РїСѓСЃС‚РёС‚СЊ С‡РµСЂРµР· `dotnet run`
 ```
 
 ### Package Management
 ```bash
-# Добавить NuGet пакет
+# Р”РѕР±Р°РІРёС‚СЊ NuGet РїР°РєРµС‚
 dotnet add src/AudioRecorder.Services/AudioRecorder.Services.csproj package <PackageName>
 
-# Восстановить пакеты
+# Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ РїР°РєРµС‚С‹
 dotnet restore
 ```
 
 ### Project References
 ```bash
-# Добавить ссылку на проект
+# Р”РѕР±Р°РІРёС‚СЊ СЃСЃС‹Р»РєСѓ РЅР° РїСЂРѕРµРєС‚
 dotnet add src/AudioRecorder.App/AudioRecorder.csproj reference src/AudioRecorder.Services/AudioRecorder.Services.csproj
 ```
 
@@ -135,38 +135,39 @@ dotnet add src/AudioRecorder.App/AudioRecorder.csproj reference src/AudioRecorde
 
 ### Audio Capture
 - **WasapiAudioCaptureService** (`src/AudioRecorder.Services/Audio/WasapiAudioCaptureService.cs`)
-  - Loopback capture для системного звука
-  - Capture для микрофонов
-  - Real-time запись в WAV формат
-  - События изменения состояния
-  - Автоконвертация WAV в MP3 для экономии места
+  - Loopback capture РґР»СЏ СЃРёСЃС‚РµРјРЅРѕРіРѕ Р·РІСѓРєР°
+  - Capture РґР»СЏ РјРёРєСЂРѕС„РѕРЅРѕРІ
+  - Real-time Р·Р°РїРёСЃСЊ РІ WAV С„РѕСЂРјР°С‚
+  - РЎРѕР±С‹С‚РёСЏ РёР·РјРµРЅРµРЅРёСЏ СЃРѕСЃС‚РѕСЏРЅРёСЏ
+  - РђРІС‚РѕРєРѕРЅРІРµСЂС‚Р°С†РёСЏ WAV РІ MP3 РґР»СЏ СЌРєРѕРЅРѕРјРёРё РјРµСЃС‚Р°
 
 ### Transcription
 - **WhisperTranscriptionService** (`src/AudioRecorder.Services/Transcription/WhisperTranscriptionService.cs`)
-  - Интеграция с faster-whisper-xxl
-  - Диаризация через pyannote_v3.1 (разделение спикеров)
-  - Детальный прогресс с отображением скорости и времени
-  - Парсинг временных меток и сегментов
-  - Обработка файлов любой длины (60+ минут)
-  - Игнорирование cleanup crash (-1073740791) при успешном результате
-  - Полное логирование процесса для диагностики
+  - РРЅС‚РµРіСЂР°С†РёСЏ СЃ faster-whisper-xxl
+  - Р”РёР°СЂРёР·Р°С†РёСЏ С‡РµСЂРµР· pyannote_v3.1 (СЂР°Р·РґРµР»РµРЅРёРµ СЃРїРёРєРµСЂРѕРІ)
+  - Р”РµС‚Р°Р»СЊРЅС‹Р№ РїСЂРѕРіСЂРµСЃСЃ СЃ РѕС‚РѕР±СЂР°Р¶РµРЅРёРµРј СЃРєРѕСЂРѕСЃС‚Рё Рё РІСЂРµРјРµРЅРё
+  - РџР°СЂСЃРёРЅРі РІСЂРµРјРµРЅРЅС‹С… РјРµС‚РѕРє Рё СЃРµРіРјРµРЅС‚РѕРІ
+  - РћР±СЂР°Р±РѕС‚РєР° С„Р°Р№Р»РѕРІ Р»СЋР±РѕР№ РґР»РёРЅС‹ (60+ РјРёРЅСѓС‚)
+  - РРіРЅРѕСЂРёСЂРѕРІР°РЅРёРµ cleanup crash (-1073740791) РїСЂРё СѓСЃРїРµС€РЅРѕРј СЂРµР·СѓР»СЊС‚Р°С‚Рµ
+  - РџРѕР»РЅРѕРµ Р»РѕРіРёСЂРѕРІР°РЅРёРµ РїСЂРѕС†РµСЃСЃР° РґР»СЏ РґРёР°РіРЅРѕСЃС‚РёРєРё
 
 ### UI
 - **MainPage** (`src/AudioRecorder.App/Views/MainPage.xaml`)
-  - Выбор источника аудио (dropdown)
-  - Кнопки управления записью (старт/стоп/пауза)
-  - Real-time отображение статуса (длительность, размер)
-  - Импорт аудиофайлов
-  - Детальный прогресс транскрипции (процент, скорость, время)
-  - Статистика результата (символы, слова, размер файла)
-  - Редактирование транскрипции: текст сегментов и имена спикеров
-  - Воспроизведение аудио по клику на временную метку
-  - Индикатор несохранённых изменений
+  - Р’С‹Р±РѕСЂ РёСЃС‚РѕС‡РЅРёРєР° Р°СѓРґРёРѕ (dropdown)
+  - РљРЅРѕРїРєРё СѓРїСЂР°РІР»РµРЅРёСЏ Р·Р°РїРёСЃСЊСЋ (СЃС‚Р°СЂС‚/СЃС‚РѕРї/РїР°СѓР·Р°)
+  - Real-time РѕС‚РѕР±СЂР°Р¶РµРЅРёРµ СЃС‚Р°С‚СѓСЃР° (РґР»РёС‚РµР»СЊРЅРѕСЃС‚СЊ, СЂР°Р·РјРµСЂ)
+  - РРјРїРѕСЂС‚ Р°СѓРґРёРѕС„Р°Р№Р»РѕРІ
+  - Р”РµС‚Р°Р»СЊРЅС‹Р№ РїСЂРѕРіСЂРµСЃСЃ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё (РїСЂРѕС†РµРЅС‚, СЃРєРѕСЂРѕСЃС‚СЊ, РІСЂРµРјСЏ)
+  - РЎС‚Р°С‚РёСЃС‚РёРєР° СЂРµР·СѓР»СЊС‚Р°С‚Р° (СЃРёРјРІРѕР»С‹, СЃР»РѕРІР°, СЂР°Р·РјРµСЂ С„Р°Р№Р»Р°)
+  - Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё: С‚РµРєСЃС‚ СЃРµРіРјРµРЅС‚РѕРІ Рё РёРјРµРЅР° СЃРїРёРєРµСЂРѕРІ
+  - Р’РѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёРµ Р°СѓРґРёРѕ РїРѕ РєР»РёРєСѓ РЅР° РІСЂРµРјРµРЅРЅСѓСЋ РјРµС‚РєСѓ
+  - РРЅРґРёРєР°С‚РѕСЂ РЅРµСЃРѕС…СЂР°РЅС‘РЅРЅС‹С… РёР·РјРµРЅРµРЅРёР№
 
 ## Notes
 
-- Записи сохраняются в `%USERPROFILE%\Documents\AudioRecorder\`
-- Формат файлов: `recording_YYYYMMDD_HHmmss.wav` → `recording_YYYYMMDD_HHmmss.mp3`
-- WAV автоматически конвертируется в MP3 и удаляется
-- Логи Whisper сохраняются как `{имя}_whisper.log` рядом с результатом
-- Launcher скрипты в корне: `run-debug.bat`, `run-release.bat`, `build-and-run.ps1`
+- Р—Р°РїРёСЃРё СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ РІ `%USERPROFILE%\\Documents\\Contora\\`
+- Р¤РѕСЂРјР°С‚ С„Р°Р№Р»РѕРІ: `recording_YYYYMMDD_HHmmss.wav` в†’ `recording_YYYYMMDD_HHmmss.mp3`
+- WAV Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё РєРѕРЅРІРµСЂС‚РёСЂСѓРµС‚СЃСЏ РІ MP3 Рё СѓРґР°Р»СЏРµС‚СЃСЏ
+- Р›РѕРіРё Whisper СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ РєР°Рє `{РёРјСЏ}_whisper.log` СЂСЏРґРѕРј СЃ СЂРµР·СѓР»СЊС‚Р°С‚РѕРј
+- Launcher СЃРєСЂРёРїС‚С‹ РІ РєРѕСЂРЅРµ: `run-debug.bat`, `run-release.bat`, `build-and-run.ps1`
+

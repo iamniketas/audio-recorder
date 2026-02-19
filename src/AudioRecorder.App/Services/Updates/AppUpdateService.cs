@@ -17,7 +17,7 @@ public sealed record UpdateDownloadResult(
 public sealed class AppUpdateService : IDisposable
 {
     // Repo with GitHub Releases that stores Velopack packages.
-    private const string ReleasesRepoUrl = "https://github.com/iamniketas/audio-recorder";
+    private const string ReleasesRepoUrl = "https://github.com/iamniketas/contora";
     private readonly UpdateManager? _updateManager;
 
     public AppUpdateService()

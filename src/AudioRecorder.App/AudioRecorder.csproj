@@ -18,6 +18,11 @@
         <LangVersion>latest</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <RootNamespace>AudioRecorder</RootNamespace>
+        <AssemblyName>Contora</AssemblyName>
+        <Version>0.2.5</Version>
+        <ApplicationIcon>Assets\Contora.ico</ApplicationIcon>
+        <Product>Contora</Product>
+        <FileDescription>Contora</FileDescription>
 
         <!-- App Options -->
         <UseRidGraph>true</UseRidGraph>
@@ -31,10 +36,16 @@
     <ItemGroup>
         <Content Include="Assets\SplashScreen.scale-200.png" />
         <Content Include="Assets\LockScreenLogo.scale-200.png" />
+        <Content Include="Assets\Contora.ico">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>Always</CopyToPublishDirectory>
+        </Content>
         <Content Include="Assets\Square150x150Logo.scale-200.png" />
         <Content Include="Assets\Square44x44Logo.scale-200.png" />
         <Content Include="Assets\Square44x44Logo.targetsize-24_altform-unplated.png" />
         <Content Include="Assets\StoreLogo.png" />
+        <Content Include="Assets\TrayIcon16.png" />
+        <Content Include="Assets\TrayIcon32.png" />
         <Content Include="Assets\Wide310x150Logo.scale-200.png" />
     </ItemGroup>
 

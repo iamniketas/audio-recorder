@@ -204,7 +204,7 @@
                     <TextBlock
                         FontSize="20"
                         FontWeight="SemiBold"
-                        Text="AudioRecorder" />
+                        Text="Contora" />
 
                     <!-- Статус записи -->
                     <Border

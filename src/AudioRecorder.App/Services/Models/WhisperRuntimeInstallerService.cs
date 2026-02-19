@@ -101,7 +101,7 @@ public sealed class WhisperRuntimeInstallerService
     private async Task<string?> ResolveWindowsAssetUrlAsync(CancellationToken ct)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-        http.DefaultRequestHeaders.Add("User-Agent", "AudioRecorder");
+        http.DefaultRequestHeaders.Add("User-Agent", "Contora");
 
         var json = await http.GetStringAsync(ReleasesApiUrl, ct);
         using var doc = JsonDocument.Parse(json);
@@ -161,7 +161,7 @@ public sealed class WhisperRuntimeInstallerService
         CancellationToken ct)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
-        http.DefaultRequestHeaders.Add("User-Agent", "AudioRecorder");
+        http.DefaultRequestHeaders.Add("User-Agent", "Contora");
         using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
 

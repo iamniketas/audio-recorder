@@ -1,9 +1,9 @@
 {
   "profiles": {
-    "AudioRecorder (Package)": {
+    "Contora (Package)": {
       "commandName": "MsixPackage"
     },
-    "AudioRecorder (Unpackaged)": {
+    "Contora (Unpackaged)": {
       "commandName": "Project"
     }
   }

@@ -54,7 +54,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
             if (ContainsNonAscii(audioPath))
             {
                 RaiseProgress(TranscriptionState.Converting, 0, "Копирование файла...");
-                tempOutputDir = Path.Combine(Path.GetTempPath(), $"AudioRecorder_{Guid.NewGuid():N}");
+                tempOutputDir = Path.Combine(Path.GetTempPath(), $"Contora_{Guid.NewGuid():N}");
                 Directory.CreateDirectory(tempOutputDir);
 
                 var safeFileName = $"audio_{DateTime.Now:yyyyMMdd_HHmmss}{Path.GetExtension(audioPath)}";
