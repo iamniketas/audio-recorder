@@ -5,6 +5,15 @@
 Р¤РѕСЂРјР°С‚ РѕСЃРЅРѕРІР°РЅ РЅР° [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 Рё РїСЂРѕРµРєС‚ РїСЂРёРґРµСЂР¶РёРІР°РµС‚СЃСЏ [СЃРµРјР°РЅС‚РёС‡РµСЃРєРѕРіРѕ РІРµСЂСЃРёРѕРЅРёСЂРѕРІР°РЅРёСЏ](https://semver.org/lang/ru/).
 
+## [0.2.6] - 2026-02-19
+
+### Fixed
+- Stabilized WinUI title bar icon application to prevent fallback to default system icon.
+- Finalized tray/title bar icon consistency in release runtime environment.
+
+### Changed
+- Bumped stable release version for GitHub distribution and rollback point.
+
 ## [0.2.5] - 2026-02-19
 
 ### Added
