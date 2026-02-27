@@ -5,6 +5,16 @@
 Р¤РѕСЂРјР°С‚ РѕСЃРЅРѕРІР°РЅ РЅР° [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 Рё РїСЂРѕРµРєС‚ РїСЂРёРґРµСЂР¶РёРІР°РµС‚СЃСЏ [СЃРµРјР°РЅС‚РёС‡РµСЃРєРѕРіРѕ РІРµСЂСЃРёРѕРЅРёСЂРѕРІР°РЅРёСЏ](https://semver.org/lang/ru/).
 
+## [0.3.0] - 2026-02-27
+
+### Added
+- Video import support in transcription flow (`.mp4`, `.m4v`, `.mov`, `.avi`, `.mkv`, `.webm`, `.wmv`).
+- Automatic audio track extraction to MP3 via `ffmpeg` when importing video files.
+
+### Changed
+- Transcription pipeline now accepts imported video by normalizing it to MP3 before Whisper/diarization.
+- Added `ffmpeg` resolution strategy: `CONTORA_FFMPEG_EXE` env var, bundled runtime path, app directory, then `PATH`.
+
 ## [0.2.7] - 2026-02-27
 
 ### Fixed

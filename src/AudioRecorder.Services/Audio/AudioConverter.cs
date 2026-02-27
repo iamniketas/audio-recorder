@@ -1,5 +1,7 @@
 using NAudio.Lame;
 using NAudio.Wave;
+using AudioRecorder.Services.Transcription;
+using System.Diagnostics;
 
 namespace AudioRecorder.Services.Audio;
 
@@ -8,6 +10,11 @@ namespace AudioRecorder.Services.Audio;
 /// </summary>
 public static class AudioConverter
 {
+    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".m4v", ".mov", ".avi", ".mkv", ".webm", ".wmv"
+    };
+
     /// <summary>
     /// Конвертировать WAV в MP3
     /// </summary>
@@ -54,5 +61,96 @@ public static class AudioConverter
     public static bool IsMp3File(string path)
     {
         return Path.GetExtension(path).Equals(".mp3", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Проверить, является ли файл видео
+    /// </summary>
+    public static bool IsVideoFile(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return !string.IsNullOrWhiteSpace(ext) && VideoExtensions.Contains(ext);
+    }
+
+    /// <summary>
+    /// Извлечь аудио-дорожку из медиафайла в MP3 через ffmpeg.
+    /// </summary>
+    public static async Task<string> ExtractAudioToMp3Async(
+        string inputPath,
+        int bitrateKbps = 192,
+        CancellationToken ct = default)
+    {
+        if (!File.Exists(inputPath))
+            throw new FileNotFoundException("Файл не найден", inputPath);
+
+        var outputPath = BuildUniqueOutputPath(inputPath, ".mp3");
+        var ffmpegExe = ResolveFfmpegExecutablePath();
+
+        var args = $"-y -i \"{inputPath}\" -vn -acodec libmp3lame -b:a {bitrateKbps}k \"{outputPath}\"";
+        var psi = new ProcessStartInfo
+        {
+            FileName = ffmpegExe,
+            Arguments = args,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = psi };
+        process.Start();
+
+        var stdOutTask = process.StandardOutput.ReadToEndAsync();
+        var stdErrTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync(ct);
+
+        var stdOut = await stdOutTask;
+        var stdErr = await stdErrTask;
+
+        if (process.ExitCode != 0 || !File.Exists(outputPath))
+        {
+            var details = string.IsNullOrWhiteSpace(stdErr) ? stdOut : stdErr;
+            throw new InvalidOperationException(
+                $"Не удалось извлечь аудио из видео через ffmpeg (код {process.ExitCode}). {details}".Trim());
+        }
+
+        return outputPath;
+    }
+
+    private static string ResolveFfmpegExecutablePath()
+    {
+        var envPath = Environment.GetEnvironmentVariable("CONTORA_FFMPEG_EXE");
+        if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
+            return envPath;
+
+        // Runtime from Faster-Whisper-XXL commonly keeps ffmpeg.exe рядом с faster-whisper-xxl.exe.
+        var whisperPath = WhisperPaths.GetDefaultWhisperPath();
+        var whisperDir = Path.GetDirectoryName(whisperPath);
+        if (!string.IsNullOrWhiteSpace(whisperDir))
+        {
+            var bundled = Path.Combine(whisperDir, "ffmpeg.exe");
+            if (File.Exists(bundled))
+                return bundled;
+        }
+
+        var appBundled = Path.Combine(AppContext.BaseDirectory, "ffmpeg.exe");
+        if (File.Exists(appBundled))
+            return appBundled;
+
+        // Fallback to PATH.
+        return "ffmpeg";
+    }
+
+    private static string BuildUniqueOutputPath(string sourcePath, string newExtension)
+    {
+        var directory = Path.GetDirectoryName(sourcePath) ?? Environment.CurrentDirectory;
+        var fileName = Path.GetFileNameWithoutExtension(sourcePath);
+        var candidate = Path.Combine(directory, fileName + newExtension);
+
+        if (!File.Exists(candidate))
+            return candidate;
+
+        var suffix = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        return Path.Combine(directory, $"{fileName}_{suffix}{newExtension}");
     }
 }

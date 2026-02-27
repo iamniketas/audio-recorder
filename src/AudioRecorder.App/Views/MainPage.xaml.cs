@@ -744,6 +744,13 @@ public sealed partial class MainPage : Page
         picker.FileTypeFilter.Add(".flac");
         picker.FileTypeFilter.Add(".m4a");
         picker.FileTypeFilter.Add(".ogg");
+        picker.FileTypeFilter.Add(".mp4");
+        picker.FileTypeFilter.Add(".m4v");
+        picker.FileTypeFilter.Add(".mov");
+        picker.FileTypeFilter.Add(".avi");
+        picker.FileTypeFilter.Add(".mkv");
+        picker.FileTypeFilter.Add(".webm");
+        picker.FileTypeFilter.Add(".wmv");
 
         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
@@ -751,9 +758,39 @@ public sealed partial class MainPage : Page
         var file = await picker.PickSingleFileAsync();
         if (file != null)
         {
-            _lastRecordingPath = file.Path;
-            CurrentFileTextBlock.Text = file.Name;
-            ShowTranscriptionSection();
+            try
+            {
+                if (AudioConverter.IsVideoFile(file.Path))
+                {
+                    TranscriptionControlSection.Visibility = Visibility.Visible;
+                    TranscriptionProgressPanel.Visibility = Visibility.Visible;
+                    TranscriptionProgressBar.IsIndeterminate = true;
+                    TranscriptionStatusText.Text = "Извлекаем аудио из видео...";
+                    TranscribeButton.IsEnabled = false;
+                    ImportButton.IsEnabled = false;
+
+                    var mp3Path = await AudioConverter.ExtractAudioToMp3Async(file.Path);
+                    _lastRecordingPath = mp3Path;
+                    CurrentFileTextBlock.Text = Path.GetFileName(mp3Path);
+                }
+                else
+                {
+                    _lastRecordingPath = file.Path;
+                    CurrentFileTextBlock.Text = file.Name;
+                }
+
+                ShowTranscriptionSection();
+            }
+            catch (Exception ex)
+            {
+                await ShowErrorDialogAsync($"Не удалось импортировать файл: {ex.Message}");
+            }
+            finally
+            {
+                ImportButton.IsEnabled = true;
+                TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+                TranscriptionProgressBar.IsIndeterminate = false;
+            }
         }
     }
 
