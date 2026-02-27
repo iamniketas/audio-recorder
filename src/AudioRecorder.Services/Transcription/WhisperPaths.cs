@@ -1,4 +1,4 @@
-namespace AudioRecorder.Services.Transcription;
+﻿namespace AudioRecorder.Services.Transcription;
 
 public static class WhisperPaths
 {
@@ -6,6 +6,7 @@ public static class WhisperPaths
     public const string EnvWhisperRoot = "CONTORA_WHISPER_ROOT";
     public const string EnvWhisperModelsRoot = "CONTORA_WHISPER_MODELS_DIR";
     public const string EnvWhisperModelLargeV2 = "CONTORA_WHISPER_MODEL_LARGE_V2_DIR";
+    public const string EnvSharedModelsRoot = "CONTORA_SHARED_MODELS_DIR";
 
     private const string LegacyEnvWhisperExe = "AUDIORECORDER_WHISPER_EXE";
     private const string LegacyEnvWhisperRoot = "AUDIORECORDER_WHISPER_ROOT";
@@ -36,13 +37,11 @@ public static class WhisperPaths
         if (File.Exists(legacyCanonicalPath))
             return legacyCanonicalPath;
 
-        // 1) Production: рядом с приложением.
         var exeDir = AppContext.BaseDirectory;
         var toolsPath = Path.Combine(exeDir, "tools", "faster-whisper-xxl", "faster-whisper-xxl.exe");
         if (File.Exists(toolsPath))
             return toolsPath;
 
-        // 2) Development: в корне репозитория.
         var projectRoot = FindProjectRoot(exeDir);
         if (projectRoot != null)
         {
@@ -68,6 +67,14 @@ public static class WhisperPaths
 
     public static string GetModelsRoot(string whisperPath)
     {
+        var explicitModelsRoot = GetEnvironmentVariableWithLegacy(EnvWhisperModelsRoot, LegacyEnvWhisperModelsRoot);
+        if (!string.IsNullOrWhiteSpace(explicitModelsRoot))
+            return explicitModelsRoot;
+
+        var sharedRoot = GetSharedModelsRoot();
+        if (!string.IsNullOrWhiteSpace(sharedRoot))
+            return sharedRoot;
+
         var rootDir = Path.GetDirectoryName(whisperPath) ?? AppContext.BaseDirectory;
         return Path.Combine(rootDir, "_models");
     }
@@ -81,7 +88,12 @@ public static class WhisperPaths
     {
         var modelDir = GetModelDirectory(whisperPath, modelName);
         if (!Directory.Exists(modelDir))
-            return false;
+        {
+            var fallbackInRuntime = Path.Combine(Path.GetDirectoryName(whisperPath) ?? AppContext.BaseDirectory, "_models", $"{ModelDirPrefix}{modelName}");
+            if (!Directory.Exists(fallbackInRuntime))
+                return false;
+            modelDir = fallbackInRuntime;
+        }
 
         foreach (var file in RequiredModelFiles)
         {
@@ -148,5 +160,37 @@ public static class WhisperPaths
             return current;
 
         return Environment.GetEnvironmentVariable(legacyKey);
+    }
+
+    private static string GetSharedModelsRoot()
+    {
+        var explicitShared = Environment.GetEnvironmentVariable(EnvSharedModelsRoot);
+        if (!string.IsNullOrWhiteSpace(explicitShared))
+            return explicitShared;
+
+        var dictatorModelPath = Environment.GetEnvironmentVariable("DICTATOR_WHISPER_MODEL_PATH");
+        if (!string.IsNullOrWhiteSpace(dictatorModelPath))
+        {
+            var modelPath = dictatorModelPath.Trim();
+            if (Directory.Exists(modelPath))
+            {
+                return Path.GetDirectoryName(modelPath) ?? modelPath;
+            }
+        }
+
+        var probes = new[]
+        {
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "dictator", "models")),
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "project-dictator", "models"))
+        };
+
+        foreach (var probe in probes)
+        {
+            if (Directory.Exists(probe))
+                return probe;
+        }
+
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        return Path.Combine(appDataPath, "SharedWhisperModels");
     }
 }

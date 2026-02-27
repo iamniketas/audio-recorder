@@ -36,7 +36,7 @@ function Resolve-VpkInvoker {
         return @{ Prefix = @("dnx", "vpk", "--version", $VelopackVersion) }
     }
 
-    throw "Не найден 'vpk' и 'dnx'. Установите vpk: dotnet tool install -g vpk --version $VelopackVersion"
+    throw "Could not find 'vpk' or 'dnx'. Install vpk: dotnet tool install -g vpk --version $VelopackVersion"
 }
 
 function Resolve-GitHubToken {
@@ -64,6 +64,27 @@ function Resolve-GitHubToken {
     return ""
 }
 
+function Resolve-IsccPath {
+    $iscc = Get-Command iscc -ErrorAction SilentlyContinue
+    if ($iscc) {
+        return $iscc.Source
+    }
+
+    $candidates = @(
+        "C:\Users\$env:USERNAME\AppData\Local\Programs\Inno Setup 6\ISCC.exe",
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe"
+    )
+
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
+        }
+    }
+
+    throw "ISCC.exe not found. Install Inno Setup 6."
+}
+
 function Invoke-External {
     param(
         [string[]]$Command,
@@ -82,8 +103,57 @@ function Invoke-External {
 
     & $Command[0] $Command[1..($Command.Length - 1)]
     if ($LASTEXITCODE -ne 0) {
-        throw "Команда завершилась с кодом ${LASTEXITCODE}: $display"
+        throw "Command failed with exit code ${LASTEXITCODE}: $display"
     }
+}
+
+function Build-ClassicInstaller {
+    param(
+        [string]$ProjectRoot,
+        [string]$PublishDir,
+        [string]$ReleaseDir,
+        [string]$Version
+    )
+
+    $isccPath = Resolve-IsccPath
+    $issPath = Join-Path $ReleaseDir "contora-installer.iss"
+    $issPathEsc = $issPath.Replace('\', '\\')
+    $publishEsc = $PublishDir.Replace('\', '\\')
+    $releaseEsc = $ReleaseDir.Replace('\', '\\')
+
+    $iss = @"
+[Setup]
+AppId={{7BC8DB04-8A03-4E8F-AF4E-1D3E4FC2B8A1}
+AppName=Contora
+AppVersion=$Version
+AppPublisher=iamniketas
+DefaultDirName={autopf}\Contora
+DefaultGroupName=Contora
+DisableDirPage=no
+DisableProgramGroupPage=yes
+OutputDir=$releaseEsc
+OutputBaseFilename=Setup
+Compression=lzma
+SolidCompression=yes
+WizardStyle=modern
+UninstallDisplayIcon={app}\Contora.exe
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+
+[Files]
+Source: "$publishEsc\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{autoprograms}\Contora"; Filename: "{app}\Contora.exe"
+Name: "{autodesktop}\Contora"; Filename: "{app}\Contora.exe"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\Contora.exe"; Description: "Launch Contora"; Flags: nowait postinstall skipifsilent
+"@
+
+    Set-Content -Path $issPath -Value $iss -Encoding utf8
+    Invoke-External -Command @($isccPath, "/Qp", $issPath)
 }
 
 function Get-VelopackVersion {
@@ -93,26 +163,26 @@ function Get-VelopackVersion {
     $node = $proj.SelectSingleNode("//PackageReference[@Include='Velopack']")
 
     if (-not $node) {
-        throw "В $CsprojPath не найден PackageReference Include=`"Velopack`""
+        throw "PackageReference Include=`"Velopack`" was not found in $CsprojPath"
     }
 
     $versionAttr = $node.Attributes["Version"]
     $version = if ($versionAttr) { $versionAttr.Value } else { "" }
     if ([string]::IsNullOrWhiteSpace($version)) {
-        throw "У PackageReference Velopack отсутствует атрибут Version в $CsprojPath"
+        throw "PackageReference Velopack is missing Version in $CsprojPath"
     }
 
     return $version
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
-    throw "Version должен быть в формате semver, например 0.2.3"
+    throw "Version must be semver, for example 0.2.3"
 }
 
 $projectRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $appCsproj = Join-Path $projectRoot "src\AudioRecorder.App\AudioRecorder.csproj"
 if (-not (Test-Path $appCsproj)) {
-    throw "Не найден проект приложения: $appCsproj"
+    throw "App project not found: $appCsproj"
 }
 
 $resolvedOutputRoot = Join-Path $projectRoot $OutputRoot
@@ -176,7 +246,7 @@ $packArgs = @(
 if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
     $resolvedNotes = Join-Path $projectRoot $ReleaseNotesPath
     if (-not (Test-Path $resolvedNotes)) {
-        throw "Файл release notes не найден: $resolvedNotes"
+        throw "Release notes file not found: $resolvedNotes"
     }
 
     $packArgs += @("--releaseNotes", $resolvedNotes)
@@ -184,10 +254,14 @@ if (-not [string]::IsNullOrWhiteSpace($ReleaseNotesPath)) {
 
 Invoke-External -Command ($vpk.Prefix + $packArgs) -Dry:$DryRun
 
+if (-not $DryRun) {
+    Build-ClassicInstaller -ProjectRoot $projectRoot -PublishDir $publishDir -ReleaseDir $releaseDir -Version $Version
+}
+
 if (-not $NoUpload) {
     $token = Resolve-GitHubToken
     if ([string]::IsNullOrWhiteSpace($token)) {
-        throw "Для upload нужен токен. Установите VPK_TOKEN или GITHUB_TOKEN."
+        throw "Upload requires a token. Set VPK_TOKEN or GITHUB_TOKEN."
     }
 
     $uploadArgs = @(
@@ -209,4 +283,4 @@ if (-not $NoUpload) {
     Invoke-External -Command ($vpk.Prefix + $uploadArgs) -Dry:$DryRun
 }
 
-Write-Host "`nГотово. Артефакты: $releaseDir" -ForegroundColor Green
+Write-Host "`nDone. Artifacts: $releaseDir" -ForegroundColor Green

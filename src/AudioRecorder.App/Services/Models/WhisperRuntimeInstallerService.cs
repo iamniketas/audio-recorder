@@ -42,11 +42,11 @@ public sealed class WhisperRuntimeInstallerService
     {
         try
         {
-            onProgress(new RuntimeInstallProgress("resolve", 1, "Получаем актуальный релиз faster-whisper-xxl..."));
+            onProgress(new RuntimeInstallProgress("resolve", 1, "Resolving latest faster-whisper-xxl release..."));
             var assetUrl = await ResolveWindowsAssetUrlAsync(ct);
             if (assetUrl == null)
             {
-                return new RuntimeInstallResult(false, "Не удалось найти Windows-ассет faster-whisper-xxl в официальных релизах.");
+                return new RuntimeInstallResult(false, "Could not find a Windows faster-whisper-xxl asset in official releases.");
             }
 
             var tempArchive = Path.Combine(Path.GetTempPath(), $"faster-whisper-xxl_{Guid.NewGuid():N}.7z");
@@ -54,33 +54,33 @@ public sealed class WhisperRuntimeInstallerService
 
             try
             {
-                onProgress(new RuntimeInstallProgress("download", 5, "Скачиваем движок Whisper XXL..."));
+                onProgress(new RuntimeInstallProgress("download", 5, "Downloading Whisper XXL runtime..."));
                 await DownloadFileAsync(assetUrl, tempArchive, progress =>
                 {
                     var mapped = 5 + (int)(progress * 0.65); // 5..70
-                    onProgress(new RuntimeInstallProgress("download", mapped, $"Скачиваем движок Whisper XXL... {progress}%"));
+                    onProgress(new RuntimeInstallProgress("download", mapped, $"Downloading Whisper XXL runtime... {progress}%"));
                 }, ct);
 
-                onProgress(new RuntimeInstallProgress("extract", 72, "Распаковываем архив движка..."));
+                onProgress(new RuntimeInstallProgress("extract", 72, "Extracting runtime archive..."));
                 Directory.CreateDirectory(tempExtractDir);
                 ExtractArchive(tempArchive, tempExtractDir, p =>
                 {
                     var mapped = 72 + (int)(p * 0.23); // 72..95
-                    onProgress(new RuntimeInstallProgress("extract", mapped, $"Распаковка движка... {p}%"));
+                    onProgress(new RuntimeInstallProgress("extract", mapped, $"Extracting runtime... {p}%"));
                 });
 
                 var extractedExe = FindWhisperExe(tempExtractDir);
                 if (extractedExe == null)
                 {
-                    return new RuntimeInstallResult(false, "Архив скачан, но файл faster-whisper-xxl.exe не найден.");
+                    return new RuntimeInstallResult(false, "Archive was downloaded, but faster-whisper-xxl.exe was not found.");
                 }
 
                 var extractedRoot = Path.GetDirectoryName(extractedExe)!;
                 InstallExtractedRuntime(extractedRoot);
 
                 WhisperPaths.RegisterEnvironmentVariables(_runtimeExePath, "large-v2");
-                onProgress(new RuntimeInstallProgress("done", 100, "Движок Whisper XXL установлен."));
-                return new RuntimeInstallResult(true, "Движок Whisper XXL установлен.", _runtimeExePath);
+                onProgress(new RuntimeInstallProgress("done", 100, "Whisper XXL runtime installed."));
+                return new RuntimeInstallResult(true, "Whisper XXL runtime installed.", _runtimeExePath);
             }
             finally
             {
@@ -90,11 +90,11 @@ public sealed class WhisperRuntimeInstallerService
         }
         catch (OperationCanceledException)
         {
-            return new RuntimeInstallResult(false, "Установка движка отменена.");
+            return new RuntimeInstallResult(false, "Runtime installation cancelled.");
         }
         catch (Exception ex)
         {
-            return new RuntimeInstallResult(false, $"Не удалось установить движок: {ex.Message}");
+            return new RuntimeInstallResult(false, $"Failed to install runtime: {ex.Message}");
         }
     }
 
@@ -259,4 +259,5 @@ public sealed class WhisperRuntimeInstallerService
         }
     }
 }
+
 

@@ -45,7 +45,7 @@
                         Value="{StaticResource WhiteBrush}" />
             </Style>
 
-            <!-- Стиль для timestamp кнопок в транскрипции -->
+            <!-- Style for timestamp buttons in transcription -->
             <Style x:Key="TimestampButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
@@ -55,7 +55,7 @@
                 <Setter Property="Foreground" Value="{ThemeResource AccentTextFillColorPrimaryBrush}" />
             </Style>
 
-            <!-- Стиль для сегментов транскрипции -->
+            <!-- Style for transcription segments -->
             <Style x:Key="TranscriptionTextBoxStyle" TargetType="TextBox">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />

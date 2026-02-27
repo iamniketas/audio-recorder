@@ -18,9 +18,6 @@ using Velopack;
 
 namespace AudioRecorder.Views;
 
-/// <summary>
-/// ViewModel РґР»СЏ РёСЃС‚РѕС‡РЅРёРєР° Р°СѓРґРёРѕ СЃ РїРѕРґРґРµСЂР¶РєРѕР№ РІС‹Р±РѕСЂР°
-/// </summary>
 public class AudioSourceViewModel : INotifyPropertyChanged
 {
     private bool _isSelected;
@@ -54,9 +51,6 @@ public class AudioSourceViewModel : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// ViewModel РґР»СЏ СЃРїРёРєРµСЂР°
-/// </summary>
 public class SpeakerViewModel : INotifyPropertyChanged
 {
     private string _name;
@@ -90,9 +84,6 @@ public class SpeakerViewModel : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// ViewModel РґР»СЏ СЃРµРіРјРµРЅС‚Р° С‚СЂР°РЅСЃРєСЂРёРїС†РёРё
-/// </summary>
 public class TranscriptionSegmentViewModel : INotifyPropertyChanged
 {
     private string _speakerName;
@@ -147,9 +138,6 @@ public class TranscriptionSegmentViewModel : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// Р“Р»Р°РІРЅР°СЏ СЃС‚СЂР°РЅРёС†Р° РїСЂРёР»РѕР¶РµРЅРёСЏ РґР»СЏ Р·Р°РїРёСЃРё Р°СѓРґРёРѕ
-/// </summary>
 public sealed partial class MainPage : Page
 {
     private readonly IAudioCaptureService _audioCaptureService;
@@ -159,7 +147,7 @@ public sealed partial class MainPage : Page
     private readonly ISessionPipelineService _sessionPipelineService;
     private readonly AppUpdateService _appUpdateService;
     private readonly WhisperRuntimeInstallerService _runtimeInstallerService;
-    private readonly WhisperModelDownloadService _modelDownloadService;
+    private WhisperModelDownloadService _modelDownloadService;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherQueueTimer _updateTimer;
     private string? _lastRecordingPath;
@@ -176,7 +164,7 @@ public sealed partial class MainPage : Page
     private UpdateInfo? _availableUpdateInfo;
     private VelopackAsset? _readyToApplyRelease;
     private string _transcriptionMode = "quality";
-    // РЎР»РѕРІР°СЂСЊ: РѕСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ ID СЃРїРёРєРµСЂР° в†’ С‚РµРєСѓС‰РµРµ РёРјСЏ
+    private string _whisperModel = "large-v2";
     private readonly Dictionary<string, string> _speakerNameMap = new();
 
     public ObservableCollection<AudioSourceViewModel> OutputSources { get; } = new();
@@ -193,6 +181,7 @@ public sealed partial class MainPage : Page
 
         _settingsService = new LocalSettingsService();
         _transcriptionMode = _settingsService.LoadTranscriptionMode();
+        _whisperModel = _settingsService.LoadWhisperModel();
         _transcriptionService = CreateTranscriptionService(_transcriptionMode);
         _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
 
@@ -201,7 +190,7 @@ public sealed partial class MainPage : Page
         _playbackService.StateChanged += OnPlaybackStateChanged;
         _appUpdateService = new AppUpdateService();
         _runtimeInstallerService = new WhisperRuntimeInstallerService();
-        _modelDownloadService = new WhisperModelDownloadService();
+        _modelDownloadService = new WhisperModelDownloadService(_whisperModel);
 
         NotificationService.Initialize();
 
@@ -229,10 +218,11 @@ public sealed partial class MainPage : Page
         await LoadAudioSourcesAsync();
         LoadOutputFolderSetting();
         LoadTranscriptionModeSetting();
+        LoadWhisperModelSetting();
 
         if (_runtimeInstallerService.IsRuntimeInstalled())
         {
-            WhisperPaths.RegisterEnvironmentVariables(_runtimeInstallerService.GetRuntimeExePath(), "large-v2");
+            WhisperPaths.RegisterEnvironmentVariables(_runtimeInstallerService.GetRuntimeExePath(), _whisperModel);
         }
 
         _ = CheckForUpdatesAsync(userInitiated: false);
@@ -243,7 +233,7 @@ public sealed partial class MainPage : Page
     private ITranscriptionService CreateTranscriptionService(string mode)
     {
         bool enableDiarization = !string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase);
-        return new WhisperTranscriptionService(enableDiarization: enableDiarization);
+        return new WhisperTranscriptionService(modelName: _whisperModel, enableDiarization: enableDiarization);
     }
 
     private void ApplyTranscriptionMode(string mode, bool save)
@@ -274,6 +264,49 @@ public sealed partial class MainPage : Page
         {
             TranscriptionModeComboBox.SelectedIndex = _transcriptionMode == "light" ? 1 : 0;
         }
+    }
+
+    private void LoadWhisperModelSetting()
+    {
+        var savedModel = _settingsService.LoadWhisperModel();
+        _whisperModel = WhisperModelDownloadService.NormalizeModelName(savedModel);
+
+        if (WhisperModelComboBox.Items.Count >= 3)
+        {
+            WhisperModelComboBox.SelectedIndex = _whisperModel switch
+            {
+                "small" => 0,
+                "medium" => 1,
+                _ => 2
+            };
+        }
+    }
+
+    private void ApplyWhisperModel(string modelName, bool save)
+    {
+        var normalized = WhisperModelDownloadService.NormalizeModelName(modelName);
+        if (string.Equals(_whisperModel, normalized, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _whisperModel = normalized;
+
+        _transcriptionService.ProgressChanged -= OnTranscriptionProgressChanged;
+        _transcriptionService = CreateTranscriptionService(_transcriptionMode);
+        _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
+
+        if (save)
+        {
+            _settingsService.SaveWhisperModel(_whisperModel);
+        }
+
+        _modelDownloadService = new WhisperModelDownloadService(_whisperModel);
+
+        if (_runtimeInstallerService.IsRuntimeInstalled())
+        {
+            WhisperPaths.RegisterEnvironmentVariables(_runtimeInstallerService.GetRuntimeExePath(), _whisperModel);
+        }
+
+        UpdateTranscriptionAvailabilityUi();
     }
 
     private async Task TryAutoSetupWhisperAsync()
@@ -308,8 +341,8 @@ public sealed partial class MainPage : Page
 
         if (!whisperAvailable)
         {
-            WhisperWarningBar.Title = "Whisper не найден";
-            WhisperWarningBar.Message = "Скачайте движок faster-whisper-xxl. Он будет установлен в LocalAppData.";
+            WhisperWarningBar.Title = "Whisper runtime is missing";
+            WhisperWarningBar.Message = "Download faster-whisper-xxl. It will be installed in LocalAppData.";
             WhisperWarningBar.IsOpen = true;
 
             TranscribeButton.IsEnabled = false;
@@ -328,8 +361,8 @@ public sealed partial class MainPage : Page
             return;
         }
 
-        WhisperWarningBar.Title = "Модель Whisper не загружена";
-        WhisperWarningBar.Message = "Скачайте модель large-v2. Это требуется один раз.";
+        WhisperWarningBar.Title = "Whisper model is missing";
+        WhisperWarningBar.Message = $"Download model '{_whisperModel}'. This is required once.";
         WhisperWarningBar.IsOpen = true;
         TranscribeButton.IsEnabled = false;
 
@@ -344,6 +377,8 @@ public sealed partial class MainPage : Page
         if (_isModelDownloadInProgress)
             return;
 
+        _modelDownloadService = new WhisperModelDownloadService(_whisperModel);
+
         _isModelDownloadInProgress = true;
         _modelDownloadCts = new CancellationTokenSource();
 
@@ -353,8 +388,8 @@ public sealed partial class MainPage : Page
         ModelDownloadProgressBar.Value = 0;
         ModelDownloadStatusText.Visibility = Visibility.Visible;
         ModelDownloadStatusText.Text = autoStarted
-            ? "Первая настройка: скачиваем модель Whisper..."
-            : "Скачиваем модель Whisper...";
+            ? $"First-time setup: downloading model '{_whisperModel}'..."
+            : $"Downloading model '{_whisperModel}'...";
 
         try
         {
@@ -368,8 +403,8 @@ public sealed partial class MainPage : Page
                         var totalMb = progress.TotalBytes > 0 ? progress.TotalBytes / (1024.0 * 1024.0) : 0;
 
                         ModelDownloadStatusText.Text = progress.TotalBytes > 0
-                            ? $"Скачивание модели: {progress.Percent}% ({downloadedMb:F1}/{totalMb:F1} MB), файл: {progress.CurrentFile}"
-                            : $"Скачивание модели: файл {progress.CurrentFile}";
+                            ? $"Model download: {progress.Percent}% ({downloadedMb:F1}/{totalMb:F1} MB), file: {progress.CurrentFile}"
+                            : $"Model download: file {progress.CurrentFile}";
                     });
                 },
                 _modelDownloadCts.Token);
@@ -377,7 +412,7 @@ public sealed partial class MainPage : Page
             ModelDownloadStatusText.Text = result.StatusMessage;
             if (result.Success)
             {
-                WhisperPaths.RegisterEnvironmentVariables(_modelDownloadService.GetWhisperPath(), "large-v2");
+                WhisperPaths.RegisterEnvironmentVariables(_modelDownloadService.GetWhisperPath(), _whisperModel);
             }
         }
         finally
@@ -413,8 +448,8 @@ public sealed partial class MainPage : Page
         RuntimeDownloadProgressBar.Value = 0;
         RuntimeDownloadStatusText.Visibility = Visibility.Visible;
         RuntimeDownloadStatusText.Text = autoStarted
-            ? "Первая настройка: скачиваем движок Whisper XXL..."
-            : "Скачиваем движок Whisper XXL...";
+            ? "First-time setup: downloading Whisper XXL runtime..."
+            : "Downloading Whisper XXL runtime...";
 
         try
         {
@@ -433,7 +468,7 @@ public sealed partial class MainPage : Page
 
             if (result.Success && !string.IsNullOrWhiteSpace(result.WhisperExePath))
             {
-                WhisperPaths.RegisterEnvironmentVariables(result.WhisperExePath, "large-v2");
+                WhisperPaths.RegisterEnvironmentVariables(result.WhisperExePath, _whisperModel);
             }
         }
         finally
@@ -475,7 +510,7 @@ public sealed partial class MainPage : Page
 
         try
         {
-            UpdateStatusText.Text = "Проверка обновлений...";
+            UpdateStatusText.Text = "Checking for updates...";
             var checkResult = await _appUpdateService.CheckForUpdatesAsync();
 
             if (!checkResult.Success)
@@ -487,13 +522,13 @@ public sealed partial class MainPage : Page
             if (!checkResult.UpdateAvailable || checkResult.UpdateInfo == null)
             {
                 UpdateStatusText.Text = userInitiated
-                    ? "Обновлений нет. У вас последняя версия."
-                    : "Автопроверка: обновлений нет.";
+                    ? "No updates available. You already have the latest version."
+                    : "Auto-check: no updates available.";
                 return;
             }
 
             _availableUpdateInfo = checkResult.UpdateInfo;
-            UpdateStatusText.Text = $"{checkResult.StatusMessage} Скачивание...";
+            UpdateStatusText.Text = $"{checkResult.StatusMessage} Downloading...";
             UpdateProgressBar.Visibility = Visibility.Visible;
             UpdateProgressBar.Value = 0;
 
@@ -505,7 +540,7 @@ public sealed partial class MainPage : Page
                     {
                         UpdateProgressBar.Visibility = Visibility.Visible;
                         UpdateProgressBar.Value = Math.Max(0, Math.Min(100, progress));
-                        UpdateStatusText.Text = $"Скачивание обновления: {progress}%";
+                        UpdateStatusText.Text = $"Downloading update: {progress}%";
                     });
                 });
 
@@ -543,10 +578,10 @@ public sealed partial class MainPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Установить обновление",
-            Content = "Приложение будет перезапущено для завершения установки.",
-            PrimaryButtonText = "Установить и перезапустить",
-            CloseButtonText = "Отмена",
+            Title = "Apply update",
+            Content = "The app will restart to complete installation.",
+            PrimaryButtonText = "Apply and restart",
+            CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = Content.XamlRoot
         };
@@ -558,7 +593,7 @@ public sealed partial class MainPage : Page
         var started = _appUpdateService.ApplyUpdateAndRestart(_readyToApplyRelease);
         if (!started)
         {
-            await ShowErrorDialogAsync("Не удалось применить обновление.");
+            await ShowErrorDialogAsync("Failed to apply update.");
         }
     }
 
@@ -580,7 +615,6 @@ public sealed partial class MainPage : Page
 
     private static string FormatFolderPath(string fullPath)
     {
-        // РџРѕРєР°Р·С‹РІР°РµРј РїРѕСЃР»РµРґРЅРёРµ 2 РєРѕРјРїРѕРЅРµРЅС‚Р° РїСѓС‚Рё СЃ ... РІРїРµСЂРµРґРё РµСЃР»Рё РїСѓС‚СЊ РґР»РёРЅРЅС‹Р№
         var parts = fullPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         if (parts.Length > 3)
         {
@@ -620,7 +654,7 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            await ShowErrorDialogAsync($"Ошибка загрузки устройств: {ex.Message}");
+            await ShowErrorDialogAsync($"Failed to load devices: {ex.Message}");
         }
     }
 
@@ -663,13 +697,13 @@ public sealed partial class MainPage : Page
         {
             SettingsColumn.Width = new GridLength(280);
             SettingsPanel.Visibility = Visibility.Visible;
-            ToggleSettingsButton.Content = "В«";
+            ToggleSettingsButton.Content = "<<";
         }
         else
         {
             SettingsColumn.Width = new GridLength(0);
             SettingsPanel.Visibility = Visibility.Collapsed;
-            ToggleSettingsButton.Content = "В»";
+            ToggleSettingsButton.Content = ">>";
         }
     }
 
@@ -688,7 +722,7 @@ public sealed partial class MainPage : Page
 
                 if (selectedSources.Count == 0)
                 {
-                    await ShowErrorDialogAsync("Выберите хотя бы один источник аудио");
+                    await ShowErrorDialogAsync("Select at least one audio source");
                     return;
                 }
 
@@ -697,7 +731,7 @@ public sealed partial class MainPage : Page
                 _lastRecordingPath = GetOutputPath();
                 await _audioCaptureService.StartRecordingAsync(selectedSources, _lastRecordingPath);
 
-                StartStopButton.Content = "Остановить";
+                StartStopButton.Content = "Stop";
                 PauseResumeButton.IsEnabled = true;
                 OutputSourcesListView.IsEnabled = false;
                 InputSourcesListView.IsEnabled = false;
@@ -710,9 +744,9 @@ public sealed partial class MainPage : Page
             {
                 await _audioCaptureService.StopRecordingAsync();
 
-                StartStopButton.Content = "Начать запись";
+                StartStopButton.Content = "Start recording";
                 PauseResumeButton.IsEnabled = false;
-                PauseResumeButton.Content = "Пауза";
+                PauseResumeButton.Content = "Pause";
                 OutputSourcesListView.IsEnabled = true;
                 InputSourcesListView.IsEnabled = true;
 
@@ -722,7 +756,7 @@ public sealed partial class MainPage : Page
                 {
                     if (AudioConverter.IsWavFile(_lastRecordingPath))
                     {
-                        StateTextBlock.Text = "Конвертация в MP3...";
+                        StateTextBlock.Text = "Converting to MP3...";
                         try
                         {
                             _lastRecordingPath = await AudioConverter.ConvertToMp3Async(
@@ -731,9 +765,9 @@ public sealed partial class MainPage : Page
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Ошибка конвертации: {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Conversion error: {ex.Message}");
                         }
-                        StateTextBlock.Text = "Остановлено";
+                        StateTextBlock.Text = "Stopped";
                     }
 
                     ShowTranscriptionSection();
@@ -743,8 +777,8 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка в OnStartStopClicked: {ex.Message}");
-            await ShowErrorDialogAsync($"Ошибка: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error in OnStartStopClicked: {ex.Message}");
+            await ShowErrorDialogAsync($"Error: {ex.Message}");
         }
     }
 
@@ -757,17 +791,17 @@ public sealed partial class MainPage : Page
             if (info.State == RecordingState.Recording)
             {
                 await _audioCaptureService.PauseRecordingAsync();
-                PauseResumeButton.Content = "Возобновить";
+                PauseResumeButton.Content = "Resume";
             }
             else if (info.State == RecordingState.Paused)
             {
                 await _audioCaptureService.ResumeRecordingAsync();
-                PauseResumeButton.Content = "Пауза";
+                PauseResumeButton.Content = "Pause";
             }
         }
         catch (Exception ex)
         {
-            await ShowErrorDialogAsync($"Ошибка: {ex.Message}");
+            await ShowErrorDialogAsync($"Error: {ex.Message}");
         }
     }
 
@@ -804,7 +838,7 @@ public sealed partial class MainPage : Page
                     TranscriptionControlSection.Visibility = Visibility.Visible;
                     TranscriptionProgressPanel.Visibility = Visibility.Visible;
                     TranscriptionProgressBar.IsIndeterminate = true;
-                    TranscriptionStatusText.Text = "Извлекаем аудио из видео...";
+                    TranscriptionStatusText.Text = "Extracting audio from video...";
                     TranscribeButton.IsEnabled = false;
                     ImportButton.IsEnabled = false;
 
@@ -822,7 +856,7 @@ public sealed partial class MainPage : Page
             }
             catch (Exception ex)
             {
-                await ShowErrorDialogAsync($"Не удалось импортировать файл: {ex.Message}");
+                await ShowErrorDialogAsync($"Failed to import file: {ex.Message}");
             }
             finally
             {
@@ -842,6 +876,15 @@ public sealed partial class MainPage : Page
         ApplyTranscriptionMode(mode, save: true);
     }
 
+    private void OnWhisperModelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox comboBox || comboBox.SelectedItem is not ComboBoxItem item)
+            return;
+
+        var modelName = item.Tag?.ToString() ?? "large-v2";
+        ApplyWhisperModel(modelName, save: true);
+    }
+
     private void ShowTranscriptionSection()
     {
         TranscriptionControlSection.Visibility = Visibility.Visible;
@@ -849,7 +892,6 @@ public sealed partial class MainPage : Page
         TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
         _lastTranscriptionPath = null;
 
-        // РћС‡РёС‰Р°РµРј РїСЂРµРґС‹РґСѓС‰СѓСЋ С‚СЂР°РЅСЃРєСЂРёРїС†РёСЋ
         TranscriptionSegments.Clear();
         Speakers.Clear();
         SpeakersPanel.Visibility = Visibility.Collapsed;
@@ -862,15 +904,15 @@ public sealed partial class MainPage : Page
     {
         if (_lastRecordingPath == null || !File.Exists(_lastRecordingPath))
         {
-            await ShowErrorDialogAsync("Файл записи не найден");
+            await ShowErrorDialogAsync("Recording file not found");
             return;
         }
 
         TranscribeButton.IsEnabled = false;
         TranscriptionProgressPanel.Visibility = Visibility.Visible;
         TranscriptionProgressBar.IsIndeterminate = true;
-        TranscriptionStatusText.Text = "Подготовка...";
-        TranscriptionStatsPanel.Visibility = Visibility.Collapsed; // РЎРєСЂС‹РІР°РµРј СЃС‚Р°С‚РёСЃС‚РёРєСѓ
+        TranscriptionStatusText.Text = "Preparing...";
+        TranscriptionStatsPanel.Visibility = Visibility.Collapsed; //  
 
         _transcriptionCts = new CancellationTokenSource();
 
@@ -881,11 +923,10 @@ public sealed partial class MainPage : Page
             if (result.Success)
             {
                 _lastTranscriptionPath = result.OutputPath;
-                TranscriptionStatusText.Text = $"Готово! {result.Segments.Count} сегментов";
+                TranscriptionStatusText.Text = $"Done! {result.Segments.Count} segments";
                 TranscriptionProgressBar.IsIndeterminate = false;
                 TranscriptionProgressBar.Value = 100;
 
-                // Р’С‹С‡РёСЃР»СЏРµРј Рё РїРѕРєР°Р·С‹РІР°РµРј СЃС‚Р°С‚РёСЃС‚РёРєСѓ
                 if (result.OutputPath != null && File.Exists(result.OutputPath))
                 {
                     try
@@ -897,17 +938,15 @@ public sealed partial class MainPage : Page
                         var wordCount = text.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
                         var fileSizeKB = fileInfo.Length / 1024.0;
 
-                        var statsText = $"Символов: {charCount:N0} • Слов: {wordCount:N0} • Размер файла: {fileSizeKB:F1} КБ";
+                        var statsText = $"Characters: {charCount:N0}  Words: {wordCount:N0}  File size: {fileSizeKB:F1} KB";
                         TranscriptionStatsText.Text = statsText;
                         TranscriptionStatsPanel.Visibility = Visibility.Visible;
                     }
                     catch
                     {
-                        // Р•СЃР»Рё РЅРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃС‚Р°С‚РёСЃС‚РёРєСѓ - РЅРµ СЃС‚СЂР°С€РЅРѕ
                     }
                 }
 
-                // РћР±РЅРѕРІР»СЏРµРј РїСѓС‚СЊ Рє С„Р°Р№Р»Сѓ
                 var mp3Path = Path.ChangeExtension(_lastRecordingPath, ".mp3");
                 if (File.Exists(mp3Path))
                 {
@@ -915,11 +954,10 @@ public sealed partial class MainPage : Page
                     CurrentFileTextBlock.Text = Path.GetFileName(mp3Path);
                 }
 
-                // Р—Р°РіСЂСѓР¶Р°РµРј С‚СЂР°РЅСЃРєСЂРёРїС†РёСЋ РІ UI
                 await LoadTranscriptionToUI(result.Segments);
 
                 // Post-processing pipeline: clean -> Ollama -> append to markdown.
-                TranscriptionStatusText.Text = "Постобработка через Ollama...";
+                TranscriptionStatusText.Text = "Post-processing with Ollama...";
                 var pipelineCt = _transcriptionCts?.Token ?? CancellationToken.None;
                 var rawWhisperText = await LoadRawWhisperTextAsync(result, pipelineCt);
                 var pipelineResult = await _sessionPipelineService.ProcessSessionAsync(
@@ -930,36 +968,34 @@ public sealed partial class MainPage : Page
                 if (pipelineResult.Success)
                 {
                     TranscriptionStatusText.Text = pipelineResult.UsedBackup
-                        ? $"Транскрипция сохранена в backup: {Path.GetFileName(pipelineResult.TargetPath)}"
-                        : $"Транскрипция и выжимка сохранены: {Path.GetFileName(pipelineResult.TargetPath)}";
+                        ? $"Transcription saved in backup: {Path.GetFileName(pipelineResult.TargetPath)}"
+                        : $"Transcription and summary saved: {Path.GetFileName(pipelineResult.TargetPath)}";
                 }
                 else
                 {
-                    TranscriptionStatusText.Text = "Транскрипция готова, но постобработка завершилась с ошибкой";
+                    TranscriptionStatusText.Text = "Transcription is ready, but post-processing failed";
                     AudioRecorder.Services.Logging.AppLogger.LogWarning(
                         $"Session pipeline failed after transcription: {pipelineResult.ErrorMessage}");
                 }
 
-                // Р—Р°РіСЂСѓР¶Р°РµРј Р°СѓРґРёРѕ РґР»СЏ РІРѕСЃРїСЂРѕРёР·РІРµРґРµРЅРёСЏ
                 if (_lastRecordingPath != null && File.Exists(_lastRecordingPath))
                 {
                     await _playbackService.LoadAsync(_lastRecordingPath);
                 }
 
-                // РЈРІРµРґРѕРјР»РµРЅРёРµ
                 var fileName = Path.GetFileName(_lastRecordingPath ?? "recording");
                 NotificationService.ShowTranscriptionCompleted(fileName, result.Segments.Count, result.OutputPath);
             }
             else
             {
-                await ShowErrorDialogAsync($"Ошибка транскрипции:\n{result.ErrorMessage}");
+                await ShowErrorDialogAsync($"Transcription error:\n{result.ErrorMessage}");
                 TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
                 TranscribeButton.IsEnabled = true;
             }
         }
         catch (Exception ex)
         {
-            await ShowErrorDialogAsync($"Ошибка: {ex.Message}");
+            await ShowErrorDialogAsync($"Error: {ex.Message}");
             TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
             TranscribeButton.IsEnabled = true;
         }
@@ -976,7 +1012,6 @@ public sealed partial class MainPage : Page
         Speakers.Clear();
         _speakerNameMap.Clear();
 
-        // РЎРѕР±РёСЂР°РµРј СѓРЅРёРєР°Р»СЊРЅС‹С… СЃРїРёРєРµСЂРѕРІ
         var speakerIds = segments.Select(s => s.Speaker).Distinct().ToList();
         var speakerMap = new Dictionary<string, SpeakerViewModel>();
 
@@ -985,18 +1020,15 @@ public sealed partial class MainPage : Page
             var speaker = new SpeakerViewModel(id, id);
             Speakers.Add(speaker);
             speakerMap[id] = speaker;
-            // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј СЃР»РѕРІР°СЂСЊ: РѕСЂРёРіРёРЅР°Р»СЊРЅРѕРµ РёРјСЏ = С‚РµРєСѓС‰РµРјСѓ
             _speakerNameMap[id] = id;
         }
 
-        // РЎРѕР·РґР°С‘Рј ViewModels РґР»СЏ СЃРµРіРјРµРЅС‚РѕРІ
         foreach (var segment in segments)
         {
             var speakerName = speakerMap.TryGetValue(segment.Speaker, out var speaker) ? speaker.Name : segment.Speaker;
             TranscriptionSegments.Add(new TranscriptionSegmentViewModel(segment, speakerName));
         }
 
-        // РџРѕРєР°Р·С‹РІР°РµРј РїР°РЅРµР»СЊ СЃРїРёРєРµСЂРѕРІ РµСЃР»Рё РёС… Р±РѕР»СЊС€Рµ РѕРґРЅРѕРіРѕ
         SpeakersPanel.Visibility = Speakers.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         SaveTranscriptionButton.Visibility = Visibility.Visible;
         SetUnsavedChanges(false);
@@ -1030,12 +1062,10 @@ public sealed partial class MainPage : Page
     {
         if (sender is TextBox textBox && textBox.DataContext is SpeakerViewModel speaker)
         {
-            // РћР±РЅРѕРІР»СЏРµРј РёРјСЏ СЃРїРёРєРµСЂР° РІРѕ РІСЃРµС… СЃРµРіРјРµРЅС‚Р°С…
             foreach (var segment in TranscriptionSegments.Where(s => s.SpeakerId == speaker.Id))
             {
                 segment.SpeakerName = speaker.Name;
             }
-            // РћР±РЅРѕРІР»СЏРµРј СЃР»РѕРІР°СЂСЊ СЃРѕРѕС‚РІРµС‚СЃС‚РІРёР№
             _speakerNameMap[speaker.Id] = speaker.Name;
             SetUnsavedChanges(true);
         }
@@ -1049,25 +1079,22 @@ public sealed partial class MainPage : Page
     private void SetUnsavedChanges(bool hasChanges)
     {
         _hasUnsavedChanges = hasChanges;
-        // РћР±РЅРѕРІР»СЏРµРј РёРЅРґРёРєР°С‚РѕСЂ: Р¶С‘Р»С‚С‹Р№ = РЅРµСЃРѕС…СЂР°РЅРµРЅРѕ, Р·РµР»С‘РЅС‹Р№ = СЃРѕС…СЂР°РЅРµРЅРѕ
         if (SaveIndicator != null)
         {
             SaveIndicator.Fill = hasChanges
-                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 193, 7)) // Р–С‘Р»С‚С‹Р№
-                : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 76, 175, 80)); // Р—РµР»С‘РЅС‹Р№
+                ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 255, 193, 7)) // 
+                : new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 76, 175, 80)); // 
         }
     }
 
     private void OnSpeakerRightTapped(object sender, Microsoft.UI.Xaml.Input.RightTappedRoutedEventArgs e)
     {
-        // РљРѕРЅС‚РµРєСЃС‚РЅРѕРµ РјРµРЅСЋ РїРѕРєР°Р¶РµС‚СЃСЏ Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё С‡РµСЂРµР· ContextFlyout
     }
 
     private async void OnRenameSpeakerClicked(object sender, RoutedEventArgs e)
     {
         TranscriptionSegmentViewModel? segment = null;
 
-        // РџРѕРґРґРµСЂР¶РєР° РІС‹Р·РѕРІР° РёР· Border Рё MenuFlyoutItem
         if (sender is MenuFlyoutItem menuItem)
         {
             segment = menuItem.Tag as TranscriptionSegmentViewModel;
@@ -1078,29 +1105,28 @@ public sealed partial class MainPage : Page
         var speakerId = segment.SpeakerId;
         var currentName = segment.SpeakerName;
 
-        // РЎРѕР·РґР°С‘Рј РґРёР°Р»РѕРі РґР»СЏ РІРІРѕРґР° РЅРѕРІРѕРіРѕ РёРјРµРЅРё
         var inputBox = new TextBox
         {
             Text = currentName,
-            PlaceholderText = "Введите имя спикера",
+            PlaceholderText = "Enter speaker name",
             SelectionStart = 0,
             SelectionLength = currentName.Length
         };
 
         var dialog = new ContentDialog
         {
-            Title = $"Переименовать спикера",
+            Title = "Rename speaker",
             Content = new StackPanel
             {
                 Spacing = 8,
                 Children =
                 {
-                    new TextBlock { Text = $"Оригинальный ID: {speakerId}" },
+                    new TextBlock { Text = $"Original ID: {speakerId}" },
                     inputBox
                 }
             },
-            PrimaryButtonText = "Переименовать",
-            CloseButtonText = "Отмена",
+            PrimaryButtonText = "Rename",
+            CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Primary,
             XamlRoot = Content.XamlRoot
         };
@@ -1111,20 +1137,17 @@ public sealed partial class MainPage : Page
         {
             var newName = inputBox.Text.Trim();
 
-            // РћР±РЅРѕРІР»СЏРµРј РёРјСЏ РІРѕ РІСЃРµС… СЃРµРіРјРµРЅС‚Р°С… СЃ СЌС‚РёРј speakerId
             foreach (var seg in TranscriptionSegments.Where(s => s.SpeakerId == speakerId))
             {
                 seg.SpeakerName = newName;
             }
 
-            // РћР±РЅРѕРІР»СЏРµРј РІ СЃРїРёСЃРєРµ СЃРїРёРєРµСЂРѕРІ
             var speakerVm = Speakers.FirstOrDefault(s => s.Id == speakerId);
             if (speakerVm != null)
             {
                 speakerVm.Name = newName;
             }
 
-            // РћР±РЅРѕРІР»СЏРµРј СЃР»РѕРІР°СЂСЊ СЃРѕРѕС‚РІРµС‚СЃС‚РІРёР№
             _speakerNameMap[speakerId] = newName;
             SetUnsavedChanges(true);
         }
@@ -1134,7 +1157,6 @@ public sealed partial class MainPage : Page
     {
         if (sender is Button button && button.Tag is TranscriptionSegmentViewModel segment)
         {
-            // Р•СЃР»Рё С‚РѕС‚ Р¶Рµ СЃРµРіРјРµРЅС‚ СѓР¶Рµ РёРіСЂР°РµС‚ вЂ” РѕСЃС‚Р°РЅР°РІР»РёРІР°РµРј
             if (_playingSegment == segment && _playbackService.State == PlaybackState.Playing)
             {
                 _playbackService.Stop();
@@ -1142,7 +1164,6 @@ public sealed partial class MainPage : Page
                 return;
             }
 
-            // Р—Р°РіСЂСѓР¶Р°РµРј С„Р°Р№Р» РµСЃР»Рё РµС‰С‘ РЅРµ Р·Р°РіСЂСѓР¶РµРЅ
             if (_lastRecordingPath != null && _playbackService.LoadedFilePath != _lastRecordingPath)
             {
                 try
@@ -1151,13 +1172,12 @@ public sealed partial class MainPage : Page
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Ошибка загрузки аудио: {ex.Message}");
-                    await ShowErrorDialogAsync($"Не удалось загрузить аудио: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Audio loading error: {ex.Message}");
+                    await ShowErrorDialogAsync($"Failed to load audio: {ex.Message}");
                     return;
                 }
             }
 
-            // Р’РѕСЃРїСЂРѕРёР·РІРѕРґРёРј СЃРµРіРјРµРЅС‚
             _playbackService.PlaySegment(segment.Start, segment.End, loop: true);
             _playingSegment = segment;
         }
@@ -1185,12 +1205,10 @@ public sealed partial class MainPage : Page
 
             foreach (var segment in TranscriptionSegments)
             {
-                // РџРѕР»СѓС‡Р°РµРј РёРјСЏ СЃРїРёРєРµСЂР° РёР· СЃР»РѕРІР°СЂСЏ (РёР»Рё РёСЃРїРѕР»СЊР·СѓРµРј С‚РµРєСѓС‰РµРµ)
                 var speakerName = _speakerNameMap.TryGetValue(segment.SpeakerId, out var name)
                     ? name
                     : segment.SpeakerName;
 
-                // Р•СЃР»Рё РµСЃС‚СЊ timestamp вЂ” СЃРѕС…СЂР°РЅСЏРµРј СЃ РЅРёРјРё
                 if (segment.Start != TimeSpan.Zero || segment.End != TimeSpan.Zero)
                 {
                     var startStr = $"{(int)segment.Start.TotalHours:00}:{segment.Start.Minutes:00}:{segment.Start.Seconds:00}.{segment.Start.Milliseconds:000}";
@@ -1199,7 +1217,6 @@ public sealed partial class MainPage : Page
                 }
                 else
                 {
-                    // Fallback СЃРµРіРјРµРЅС‚С‹ вЂ” С‚РѕР»СЊРєРѕ С‚РµРєСЃС‚
                     sb.AppendLine(segment.Text);
                 }
             }
@@ -1209,7 +1226,7 @@ public sealed partial class MainPage : Page
         }
         catch (Exception ex)
         {
-            await ShowErrorDialogAsync($"Ошибка сохранения: {ex.Message}");
+            await ShowErrorDialogAsync($"Save error: {ex.Message}");
         }
     }
 
@@ -1229,12 +1246,10 @@ public sealed partial class MainPage : Page
                 TranscriptionProgressBar.IsIndeterminate = true;
             }
 
-            // РџРѕРєР°Р·С‹РІР°РµРј РґРµС‚Р°Р»СЊРЅСѓСЋ РёРЅС„РѕСЂРјР°С†РёСЋ С‚РѕР»СЊРєРѕ РІРѕ РІСЂРµРјСЏ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё
             if (progress.State == TranscriptionState.Transcribing && progress.ProgressPercent > 0)
             {
                 TranscriptionDetailsGrid.Visibility = Visibility.Visible;
 
-                // РћР±РЅРѕРІР»СЏРµРј РґРµС‚Р°Р»Рё
                 if (progress.ElapsedTime.HasValue)
                 {
                     ElapsedTimeText.Text = FormatTimeSpan(progress.ElapsedTime.Value);
@@ -1247,11 +1262,11 @@ public sealed partial class MainPage : Page
 
                 if (progress.RemainingTime.HasValue && progress.RemainingTime.Value.TotalSeconds > 5)
                 {
-                    RemainingTimeText.Text = $"в‰€{FormatTimeSpan(progress.RemainingTime.Value)}";
+                    RemainingTimeText.Text = $"~{FormatTimeSpan(progress.RemainingTime.Value)}";
                 }
                 else
                 {
-                    RemainingTimeText.Text = "скоро...";
+                    RemainingTimeText.Text = "soon...";
                 }
             }
             else
@@ -1286,10 +1301,10 @@ public sealed partial class MainPage : Page
     {
         StateTextBlock.Text = info.State switch
         {
-            RecordingState.Stopped => "Остановлено",
-            RecordingState.Recording => "Запись",
-            RecordingState.Paused => "Пауза",
-            _ => "Неизвестно"
+            RecordingState.Stopped => "Stopped",
+            RecordingState.Recording => "Recording",
+            RecordingState.Paused => "Pause",
+            _ => "Unknown"
         };
 
         DurationTextBlock.Text = info.Duration.ToString(@"hh\:mm\:ss");
@@ -1330,7 +1345,6 @@ public sealed partial class MainPage : Page
 
     private string GetOutputPath()
     {
-        // РСЃРїРѕР»СЊР·СѓРµРј СЃРѕС…СЂР°РЅС‘РЅРЅСѓСЋ РїР°РїРєСѓ РёР»Рё РїР°РїРєСѓ РїРѕ СѓРјРѕР»С‡Р°РЅРёСЋ
         var savedFolder = _settingsService.LoadOutputFolder();
         var outputFolder = !string.IsNullOrEmpty(savedFolder)
             ? savedFolder
@@ -1362,7 +1376,7 @@ public sealed partial class MainPage : Page
 
         var dialog = new ContentDialog
         {
-            Title = "Запись сохранена",
+            Title = "Recording saved",
             Content = new StackPanel
             {
                 Spacing = 12,
@@ -1370,12 +1384,12 @@ public sealed partial class MainPage : Page
                 {
                     new TextBlock
                     {
-                        Text = $"Файл: {fileName}\nРазмер: {fileSize}",
+                        Text = $"File: {fileName}\nSize: {fileSize}",
                         TextWrapping = TextWrapping.Wrap
                     },
                     new HyperlinkButton
                     {
-                        Content = "Открыть папку",
+                        Content = "Open folder",
                         Tag = filePath
                     }
                 }
@@ -1406,7 +1420,7 @@ public sealed partial class MainPage : Page
     {
         var dialog = new ContentDialog
         {
-            Title = "Ошибка",
+            Title = "Error",
             Content = message,
             CloseButtonText = "OK",
             XamlRoot = Content.XamlRoot
@@ -1415,6 +1429,9 @@ public sealed partial class MainPage : Page
         await dialog.ShowAsync();
     }
 }
+
+
+
 
 
 

@@ -5,6 +5,15 @@ All notable changes to the Contora project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-02-27
+
+### Fixed
+- Eliminated UI mojibake by replacing user-facing app strings with stable English labels.
+- Made transcription controls visible immediately and added an explicit Whisper model selector.
+- Added selectable Whisper model downloads (`small`, `medium`, `large-v2`) with persisted preference.
+- Moved model storage to a shared model root (`LocalAppData\\SharedWhisperModels`) with optional Dictator path detection.
+- Switched release packaging to a classic Inno Setup installer with directory selection and completion flow.
+
 ## [0.3.1] - 2026-02-27
 
 ### Added

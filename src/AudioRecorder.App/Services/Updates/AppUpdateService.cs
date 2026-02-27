@@ -36,24 +36,24 @@ public sealed class AppUpdateService : IDisposable
     public async Task<UpdateCheckResult> CheckForUpdatesAsync()
     {
         if (_updateManager == null)
-            return new UpdateCheckResult(false, false, "Сервис обновлений недоступен.");
+            return new UpdateCheckResult(false, false, "Update service is unavailable.");
 
         try
         {
             var updateInfo = await _updateManager.CheckForUpdatesAsync();
             if (updateInfo == null)
-                return new UpdateCheckResult(true, false, "У вас уже последняя версия.");
+                return new UpdateCheckResult(true, false, "You already have the latest version.");
 
             var version = updateInfo.TargetFullRelease.Version;
             return new UpdateCheckResult(
                 true,
                 true,
-                $"Доступна версия {version}.",
+                $"Version {version} is available.",
                 updateInfo);
         }
         catch (Exception ex)
         {
-            return new UpdateCheckResult(false, false, $"Не удалось проверить обновления: {ex.Message}");
+            return new UpdateCheckResult(false, false, $"Failed to check for updates: {ex.Message}");
         }
     }
 
@@ -62,19 +62,19 @@ public sealed class AppUpdateService : IDisposable
         Action<int> onProgress)
     {
         if (_updateManager == null)
-            return new UpdateDownloadResult(false, "Сервис обновлений недоступен.");
+            return new UpdateDownloadResult(false, "Update service is unavailable.");
 
         try
         {
             await _updateManager.DownloadUpdatesAsync(updateInfo, onProgress);
             return new UpdateDownloadResult(
                 true,
-                "Обновление скачано. Нажмите «Установить обновление».",
+                "Update downloaded. Click \"Apply update\".",
                 updateInfo.TargetFullRelease);
         }
         catch (Exception ex)
         {
-            return new UpdateDownloadResult(false, $"Не удалось скачать обновление: {ex.Message}");
+            return new UpdateDownloadResult(false, $"Failed to download update: {ex.Message}");
         }
     }
 

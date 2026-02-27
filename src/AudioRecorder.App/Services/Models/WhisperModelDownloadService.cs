@@ -14,9 +14,6 @@ public sealed record ModelDownloadResult(
 
 public sealed class WhisperModelDownloadService
 {
-    private const string ModelName = "large-v2";
-    private const string ModelRepoResolveUrl = "https://huggingface.co/Systran/faster-whisper-large-v2/resolve/main";
-
     private static readonly string[] ModelFiles =
     [
         "config.json",
@@ -26,24 +23,40 @@ public sealed class WhisperModelDownloadService
     ];
 
     private readonly string _whisperPath;
+    private readonly string _modelName;
     private readonly string _modelDir;
+    private readonly string _modelRepoResolveUrl;
 
-    public WhisperModelDownloadService(string? whisperPath = null)
+    public WhisperModelDownloadService(string modelName = "large-v2", string? whisperPath = null)
     {
         _whisperPath = whisperPath ?? WhisperPaths.GetDefaultWhisperPath();
-        _modelDir = WhisperPaths.GetModelDirectory(_whisperPath, ModelName);
+        _modelName = NormalizeModelName(modelName);
+        _modelDir = WhisperPaths.GetModelDirectory(_whisperPath, _modelName);
+        _modelRepoResolveUrl = $"https://huggingface.co/Systran/faster-whisper-{_modelName}/resolve/main";
     }
 
     public bool IsWhisperAvailable => File.Exists(_whisperPath);
 
     public bool IsModelInstalled()
     {
-        return WhisperPaths.IsModelInstalled(_whisperPath, ModelName);
+        return WhisperPaths.IsModelInstalled(_whisperPath, _modelName);
     }
 
     public string GetWhisperPath() => _whisperPath;
 
     public string GetModelDirectory() => _modelDir;
+
+    public string GetModelName() => _modelName;
+
+    public static string NormalizeModelName(string? modelName)
+    {
+        return modelName?.Trim().ToLowerInvariant() switch
+        {
+            "small" => "small",
+            "medium" => "medium",
+            _ => "large-v2"
+        };
+    }
 
     public async Task<ModelDownloadResult> DownloadModelAsync(
         Action<ModelDownloadProgress> onProgress,
@@ -53,7 +66,7 @@ public sealed class WhisperModelDownloadService
         {
             return new ModelDownloadResult(
                 false,
-                $"Whisper не найден: {_whisperPath}");
+                $"Whisper runtime not found: {_whisperPath}");
         }
 
         try
@@ -74,7 +87,7 @@ public sealed class WhisperModelDownloadService
 
                 var tempPath = Path.Combine(_modelDir, $"{fileName}.download");
                 var targetPath = Path.Combine(_modelDir, fileName);
-                var fileUrl = $"{ModelRepoResolveUrl}/{fileName}";
+                var fileUrl = $"{_modelRepoResolveUrl}/{fileName}";
 
                 if (File.Exists(targetPath))
                 {
@@ -115,24 +128,24 @@ public sealed class WhisperModelDownloadService
                 File.Move(tempPath, targetPath);
             }
 
-            return new ModelDownloadResult(true, "Модель загружена и готова к использованию.");
+            return new ModelDownloadResult(true, $"Model '{_modelName}' downloaded and ready.");
         }
         catch (OperationCanceledException)
         {
-            return new ModelDownloadResult(false, "Загрузка модели отменена.");
+            return new ModelDownloadResult(false, "Model download cancelled.");
         }
         catch (Exception ex)
         {
-            return new ModelDownloadResult(false, $"Не удалось скачать модель: {ex.Message}");
+            return new ModelDownloadResult(false, $"Failed to download model: {ex.Message}");
         }
     }
 
-    private static async Task<long> GetTotalSizeAsync(HttpClient http, CancellationToken ct)
+    private async Task<long> GetTotalSizeAsync(HttpClient http, CancellationToken ct)
     {
         long total = 0;
         foreach (var fileName in ModelFiles)
         {
-            var fileUrl = $"{ModelRepoResolveUrl}/{fileName}";
+            var fileUrl = $"{_modelRepoResolveUrl}/{fileName}";
             using var request = new HttpRequestMessage(HttpMethod.Head, fileUrl);
             using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
 

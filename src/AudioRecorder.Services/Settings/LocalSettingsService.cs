@@ -1,11 +1,8 @@
-using AudioRecorder.Core.Services;
+﻿using AudioRecorder.Core.Services;
 using System.Text.Json;
 
 namespace AudioRecorder.Services.Settings;
 
-/// <summary>
-/// Реализация сохранения настроек в локальном файле
-/// </summary>
 public class LocalSettingsService : ISettingsService
 {
     private readonly string _settingsFilePath;
@@ -35,7 +32,7 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка сохранения настроек: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
         }
     }
 
@@ -48,7 +45,7 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка загрузки настроек: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to load settings: {ex.Message}");
             return new List<string>();
         }
     }
@@ -63,7 +60,7 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка сохранения папки: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to save output folder: {ex.Message}");
         }
     }
 
@@ -76,7 +73,7 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка загрузки папки: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to load output folder: {ex.Message}");
             return null;
         }
     }
@@ -95,7 +92,7 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка сохранения режима транскрипции: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to save transcription mode: {ex.Message}");
         }
     }
 
@@ -110,8 +107,36 @@ public class LocalSettingsService : ISettingsService
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Ошибка загрузки режима транскрипции: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Failed to load transcription mode: {ex.Message}");
             return "quality";
+        }
+    }
+
+    public void SaveWhisperModel(string modelName)
+    {
+        try
+        {
+            var settings = LoadSettings();
+            settings.WhisperModel = NormalizeWhisperModel(modelName);
+            SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to save whisper model: {ex.Message}");
+        }
+    }
+
+    public string LoadWhisperModel()
+    {
+        try
+        {
+            var settings = LoadSettings();
+            return NormalizeWhisperModel(settings.WhisperModel);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load whisper model: {ex.Message}");
+            return "large-v2";
         }
     }
 
@@ -138,5 +163,16 @@ public class LocalSettingsService : ISettingsService
         public List<string> SelectedSourceIds { get; set; } = new();
         public string? OutputFolder { get; set; }
         public string TranscriptionMode { get; set; } = "quality";
+        public string WhisperModel { get; set; } = "large-v2";
+    }
+
+    private static string NormalizeWhisperModel(string? modelName)
+    {
+        return modelName?.Trim().ToLowerInvariant() switch
+        {
+            "small" => "small",
+            "medium" => "medium",
+            _ => "large-v2"
+        };
     }
 }

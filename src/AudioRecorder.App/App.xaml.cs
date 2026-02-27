@@ -212,10 +212,10 @@ namespace AudioRecorder
                 var contextMenu = new Forms.ContextMenuStrip();
                 contextMenu.Opening += (_, _) => UpdateTrayMenuState();
 
-                _showHideMenuItem = new Forms.ToolStripMenuItem("Показать окно", null, (_, _) => ToggleWindowVisibilityFromTray());
-                _toggleRecordingMenuItem = new Forms.ToolStripMenuItem("Начать запись", null, (_, _) => ToggleRecordingFromTray());
-                _togglePauseMenuItem = new Forms.ToolStripMenuItem("Пауза", null, (_, _) => TogglePauseFromTray());
-                var exitMenuItem = new Forms.ToolStripMenuItem("Выход", null, (_, _) => ExitFromTray());
+                _showHideMenuItem = new Forms.ToolStripMenuItem("Show window", null, (_, _) => ToggleWindowVisibilityFromTray());
+                _toggleRecordingMenuItem = new Forms.ToolStripMenuItem("Start recording", null, (_, _) => ToggleRecordingFromTray());
+                _togglePauseMenuItem = new Forms.ToolStripMenuItem("Pause", null, (_, _) => TogglePauseFromTray());
+                var exitMenuItem = new Forms.ToolStripMenuItem("Exit", null, (_, _) => ExitFromTray());
 
                 contextMenu.Items.Add(_showHideMenuItem);
                 contextMenu.Items.Add(new Forms.ToolStripSeparator());
@@ -251,7 +251,7 @@ namespace AudioRecorder
             var page = GetMainPage();
             bool isVisible = _appWindow?.IsVisible ?? true;
 
-            _showHideMenuItem.Text = isVisible ? "Скрыть окно" : "Показать окно";
+            _showHideMenuItem.Text = isVisible ? "Hide window" : "Show window";
 
             if (page == null)
             {
@@ -262,10 +262,10 @@ namespace AudioRecorder
 
             var (state, hasSelection) = page.GetTrayStateSnapshot();
 
-            _toggleRecordingMenuItem.Text = state == RecordingState.Stopped ? "Начать запись" : "Остановить запись";
+            _toggleRecordingMenuItem.Text = state == RecordingState.Stopped ? "Start recording" : "Stop recording";
             _toggleRecordingMenuItem.Enabled = state != RecordingState.Stopped || hasSelection;
 
-            _togglePauseMenuItem.Text = state == RecordingState.Paused ? "Продолжить" : "Пауза";
+            _togglePauseMenuItem.Text = state == RecordingState.Paused ? "Resume" : "Pause";
             _togglePauseMenuItem.Enabled = state != RecordingState.Stopped;
         }
 
