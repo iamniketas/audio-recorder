@@ -1,84 +1,109 @@
-﻿# Contora
+# Contora
 
-**Contora** — локальное хранилище контекста для тех, кто превращает информацию в капитал.
+![Contora Hero](hero.jpg)
+
+**Contora** is a local context archive for people who turn information into leverage.
 
 > Context Storage. Local. Private. Permanent.
 
-Contora записывает и структурирует рабочие разговоры, чтобы из аудио сразу получать полезный контекст: заметки, расшифровки, фактуру для решений и дальнейших действий. Основной принцип: данные остаются на вашем устройстве.
+Contora captures work conversations, transcribes them locally, and turns raw audio into structured, usable context.  
+The core principle is simple: your data stays on your machine.
 
-## Позиционирование
+## Positioning
 
-- Invisible Capture: системная запись без облачной инфраструктуры.
-- Total Sovereignty: локальная обработка и хранение.
-- From Audio to Action: от звука к структурированному тексту и задачам.
+- **Invisible Capture:** System-level recording workflow without cloud meeting infrastructure.
+- **Total Sovereignty:** Local processing and local storage by default.
+- **From Audio to Action:** Not just recordings, but a pipeline from sound to structured output.
 
-## Что умеет сейчас
+## Core Features
 
-- Запись системного звука (WASAPI loopback) и микрофона.
-- Импорт аудиофайлов (WAV, MP3, FLAC, OGG, M4A, OPUS).
-- Локальная транскрипция через `faster-whisper-xxl`.
-- Диаризация (разделение по спикерам).
-- Редактирование текста и переименование спикеров в UI.
-- Переход к аудио по таймстемпам.
-- Встроенные обновления приложения (Velopack + GitHub Releases).
+- System audio recording (WASAPI loopback) and microphone recording.
+- Audio import: `WAV`, `MP3`, `FLAC`, `OGG`, `M4A`, `OPUS`.
+- Video import: `MP4`, `M4V`, `MOV`, `AVI`, `MKV`, `WEBM`, `WMV`.
+- Automatic audio extraction from video to MP3 via `ffmpeg`.
+- Local transcription with `faster-whisper-xxl`.
+- Speaker diarization.
+- Transcript editing and speaker renaming in the UI.
+- Timestamp-based audio playback navigation.
+- In-app updates via Velopack + GitHub Releases.
 
-## Быстрый старт (разработка)
+## Whisper Runtime and Models
 
-Требования:
+Contora is shipped without bundled Whisper runtime/model binaries in the installer.
 
-- Windows 10/11
-- .NET SDK 8+
-- Visual Studio 2022 (для WinUI 3)
+- Runtime and model are downloaded from the app when needed.
+- Canonical runtime path:
+  - `%LocalAppData%\Contora\runtime\faster-whisper-xxl\`
 
-Сборка:
-
-```bash
-dotnet build Contora.sln
-```
-
-Локальный запуск (из корня проекта):
-
-```powershell
-.\build-and-run.ps1
-```
-
-## Установка для пользователя
-
-1. Откройте страницу релизов: `https://github.com/iamniketas/contora/releases`
-2. Скачайте `*-Setup.exe` из секции **Assets**.
-3. Запустите установщик и откройте приложение `Contora` из меню Пуск.
-
-## Runtime и модели Whisper
-
-Канонический путь runtime:
-
-- `%LocalAppData%\Contora\runtime\faster-whisper-xxl\`
-
-Основные env-переменные:
+Primary environment variables:
 
 - `CONTORA_WHISPER_EXE`
 - `CONTORA_WHISPER_ROOT`
 - `CONTORA_WHISPER_MODELS_DIR`
 - `CONTORA_WHISPER_MODEL_LARGE_V2_DIR`
 
-Совместимость после ребрендинга:
+Backward compatibility:
 
-- Приложение читает legacy-конфигурации/пути `AudioRecorder` при их наличии.
-- Legacy env-переменные `AUDIORECORDER_*` также поддерживаются.
+- Legacy `AudioRecorder` paths are still supported when present.
+- Legacy `AUDIORECORDER_*` environment variables are also recognized.
 
-## Структура проекта
+## ffmpeg Resolution
 
-- `Contora.sln` — solution
-- `src/AudioRecorder.App` — WinUI-приложение
-- `src/AudioRecorder.Core` — модели и интерфейсы
-- `src/AudioRecorder.Services` — сервисы записи/STT/хранения
+For video-to-audio conversion, Contora resolves `ffmpeg` in this order:
 
-## Дорожная карта (кратко)
+1. `CONTORA_FFMPEG_EXE` environment variable.
+2. `ffmpeg.exe` next to `faster-whisper-xxl.exe` runtime.
+3. `ffmpeg.exe` in the app directory.
+4. `ffmpeg` from `PATH`.
 
-- Семантический поиск по архиву встреч (RAG).
-- Более глубокий post-processing (задачи, решения, action items).
-- Расширение экосистемы и интеграций.
+## Installation (End Users)
+
+1. Open releases: `https://github.com/iamniketas/contora/releases`
+2. Download `Contora-win-Setup.exe` from **Assets**.
+3. Run the installer and launch **Contora** from Start Menu.
+
+## Development Quick Start
+
+Requirements:
+
+- Windows 10/11
+- .NET SDK 8+
+- Visual Studio 2022 (for WinUI 3 development)
+
+Build:
+
+```bash
+dotnet build Contora.sln
+```
+
+Run from repository root:
+
+```powershell
+.\build-and-run.ps1
+```
+
+## Project Structure
+
+- `Contora.sln` - solution
+- `src/AudioRecorder.App` - WinUI desktop app
+- `src/AudioRecorder.Core` - domain models and interfaces
+- `src/AudioRecorder.Services` - recording, transcription, conversion, updates
+
+## Brand and Tone
+
+Contora follows a clear voice:
+
+- Professional, direct, and efficient.
+- Privacy-first and local-first.
+- Minimal interface, high informational value.
+
+Key messages:
+
+- **Capture the context, not just the sound.**
+- **Your private intelligence agency.**
+- **Free, Local, Unstoppable.**
 
 ## Legal
 
-Используйте запись разговоров только в рамках законодательства вашей юрисдикции. Пользователь самостоятельно отвечает за соблюдение требований к согласию сторон.
+Use recording features only in compliance with laws in your jurisdiction.  
+The user is responsible for obtaining any required consent from participants.
