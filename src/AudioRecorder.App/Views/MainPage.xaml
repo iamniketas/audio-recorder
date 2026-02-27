@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+﻿<?xml version="1.0" encoding="UTF-8" ?>
 <Page
     x:Class="AudioRecorder.Views.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -11,17 +11,17 @@
     <Page.Content>
         <Grid>
             <Grid.ColumnDefinitions>
-                <!-- Левая панель настроек (сворачиваемая) -->
+                <!-- Р›РµРІР°СЏ РїР°РЅРµР»СЊ РЅР°СЃС‚СЂРѕРµРє (СЃРІРѕСЂР°С‡РёРІР°РµРјР°СЏ) -->
                 <ColumnDefinition x:Name="SettingsColumn" Width="280" />
-                <!-- Кнопка сворачивания -->
+                <!-- РљРЅРѕРїРєР° СЃРІРѕСЂР°С‡РёРІР°РЅРёСЏ -->
                 <ColumnDefinition Width="Auto" />
-                <!-- Центральная панель управления -->
+                <!-- Р¦РµРЅС‚СЂР°Р»СЊРЅР°СЏ РїР°РЅРµР»СЊ СѓРїСЂР°РІР»РµРЅРёСЏ -->
                 <ColumnDefinition Width="320" />
-                <!-- Правая панель транскрипции -->
+                <!-- РџСЂР°РІР°СЏ РїР°РЅРµР»СЊ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё -->
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!-- Колонка 0: Панель настроек -->
+            <!-- РљРѕР»РѕРЅРєР° 0: РџР°РЅРµР»СЊ РЅР°СЃС‚СЂРѕРµРє -->
             <Border
                 x:Name="SettingsPanel"
                 Grid.Column="0"
@@ -34,14 +34,14 @@
                         <TextBlock
                             FontSize="16"
                             FontWeight="SemiBold"
-                            Text="Настройки" />
+                            Text="РќР°СЃС‚СЂРѕР№РєРё" />
 
-                        <!-- Папка сохранения -->
+                        <!-- РџР°РїРєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ -->
                         <StackPanel Spacing="4">
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Папка для записей" />
+                                Text="РџР°РїРєР° РґР»СЏ Р·Р°РїРёСЃРµР№" />
                             <Grid ColumnSpacing="8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
@@ -60,17 +60,17 @@
                                     Click="OnSelectFolderClicked"
                                     Content="..."
                                     Padding="8,4"
-                                    ToolTipService.ToolTip="Выбрать папку" />
+                                    ToolTipService.ToolTip="Р’С‹Р±СЂР°С‚СЊ РїР°РїРєСѓ" />
                             </Grid>
                         </StackPanel>
 
-                        <!-- Источники ВЫВОДА -->
+                        <!-- РСЃС‚РѕС‡РЅРёРєРё Р’Р«Р’РћР”Рђ -->
                         <StackPanel Spacing="4">
                             <TextBlock
                                 FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
-                                Text="Вывод (системный звук)" />
+                                Text="Р’С‹РІРѕРґ (СЃРёСЃС‚РµРјРЅС‹Р№ Р·РІСѓРє)" />
                             <Border
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -105,13 +105,13 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Источники ВВОДА -->
+                        <!-- РСЃС‚РѕС‡РЅРёРєРё Р’Р’РћР”Рђ -->
                         <StackPanel Spacing="4">
                             <TextBlock
                                 FontSize="12"
                                 FontWeight="SemiBold"
                                 Foreground="{ThemeResource AccentTextFillColorSecondaryBrush}"
-                                Text="Ввод (микрофоны)" />
+                                Text="Р’РІРѕРґ (РјРёРєСЂРѕС„РѕРЅС‹)" />
                             <Border
                                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                 BorderThickness="1"
@@ -146,17 +146,17 @@
                             </Border>
                         </StackPanel>
 
-                        <!-- Обновления приложения -->
+                        <!-- РћР±РЅРѕРІР»РµРЅРёСЏ РїСЂРёР»РѕР¶РµРЅРёСЏ -->
                         <StackPanel Spacing="8">
                             <TextBlock
                                 FontSize="12"
                                 FontWeight="SemiBold"
-                                Text="Обновления" />
+                                Text="РћР±РЅРѕРІР»РµРЅРёСЏ" />
 
                             <Button
                                 x:Name="CheckUpdatesButton"
                                 Click="OnCheckUpdatesClicked"
-                                Content="Проверить обновления" />
+                                Content="РџСЂРѕРІРµСЂРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёСЏ" />
 
                             <ProgressBar
                                 x:Name="UpdateProgressBar"
@@ -169,13 +169,13 @@
                                 x:Name="UpdateStatusText"
                                 FontSize="11"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="Статус: не проверялось"
+                                Text="РЎС‚Р°С‚СѓСЃ: РЅРµ РїСЂРѕРІРµСЂСЏР»РѕСЃСЊ"
                                 TextWrapping="Wrap" />
 
                             <Button
                                 x:Name="ApplyUpdateButton"
                                 Click="OnApplyUpdateClicked"
-                                Content="Установить обновление"
+                                Content="РЈСЃС‚Р°РЅРѕРІРёС‚СЊ РѕР±РЅРѕРІР»РµРЅРёРµ"
                                 Visibility="Collapsed"
                                 Style="{StaticResource AccentButtonStyle}" />
                         </StackPanel>
@@ -183,20 +183,20 @@
                 </ScrollViewer>
             </Border>
 
-            <!-- Колонка 1: Кнопка сворачивания -->
+            <!-- РљРѕР»РѕРЅРєР° 1: РљРЅРѕРїРєР° СЃРІРѕСЂР°С‡РёРІР°РЅРёСЏ -->
             <ToggleButton
                 x:Name="ToggleSettingsButton"
                 Grid.Column="1"
                 VerticalAlignment="Center"
                 Click="OnToggleSettingsClicked"
-                Content="«"
-                ToolTipService.ToolTip="Свернуть/развернуть настройки"
+                Content="В«"
+                ToolTipService.ToolTip="РЎРІРµСЂРЅСѓС‚СЊ/СЂР°Р·РІРµСЂРЅСѓС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё"
                 Width="24"
                 Padding="0"
                 Background="Transparent"
                 BorderThickness="0" />
 
-            <!-- Колонка 2: Панель управления -->
+            <!-- РљРѕР»РѕРЅРєР° 2: РџР°РЅРµР»СЊ СѓРїСЂР°РІР»РµРЅРёСЏ -->
             <Border
                 Grid.Column="2"
                 Padding="16">
@@ -206,7 +206,7 @@
                         FontWeight="SemiBold"
                         Text="Contora" />
 
-                    <!-- Статус записи -->
+                    <!-- РЎС‚Р°С‚СѓСЃ Р·Р°РїРёСЃРё -->
                     <Border
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                         BorderThickness="1"
@@ -224,19 +224,19 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,4" Text="Статус:" />
-                                <TextBlock x:Name="StateTextBlock" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" FontWeight="SemiBold" Text="Остановлено" />
+                                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,8,4" Text="РЎС‚Р°С‚СѓСЃ:" />
+                                <TextBlock x:Name="StateTextBlock" Grid.Row="0" Grid.Column="1" Margin="0,0,0,4" FontWeight="SemiBold" Text="РћСЃС‚Р°РЅРѕРІР»РµРЅРѕ" />
 
-                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,8,4" Text="Время:" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,8,4" Text="Р’СЂРµРјСЏ:" />
                                 <TextBlock x:Name="DurationTextBlock" Grid.Row="1" Grid.Column="1" Margin="0,0,0,4" Text="00:00:00" />
 
-                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,8,0" Text="Размер:" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,8,0" Text="Р Р°Р·РјРµСЂ:" />
                                 <TextBlock x:Name="FileSizeTextBlock" Grid.Row="2" Grid.Column="1" Text="0 MB" />
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <!-- Имя текущего файла -->
+                    <!-- РРјСЏ С‚РµРєСѓС‰РµРіРѕ С„Р°Р№Р»Р° -->
                     <TextBlock
                         x:Name="CurrentFileTextBlock"
                         FontSize="12"
@@ -245,7 +245,7 @@
                         TextTrimming="CharacterEllipsis"
                         ToolTipService.ToolTip="{x:Bind CurrentFileTextBlock.Text, Mode=OneWay}" />
 
-                    <!-- Кнопки записи -->
+                    <!-- РљРЅРѕРїРєРё Р·Р°РїРёСЃРё -->
                     <Grid ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -257,7 +257,7 @@
                             Grid.Column="0"
                             HorizontalAlignment="Stretch"
                             Click="OnStartStopClicked"
-                            Content="Начать запись"
+                            Content="РќР°С‡Р°С‚СЊ Р·Р°РїРёСЃСЊ"
                             IsEnabled="False"
                             Style="{StaticResource AccentButtonStyle}" />
 
@@ -266,18 +266,18 @@
                             Grid.Column="1"
                             HorizontalAlignment="Stretch"
                             Click="OnPauseResumeClicked"
-                            Content="Пауза"
+                            Content="РџР°СѓР·Р°"
                             IsEnabled="False" />
                     </Grid>
 
-                    <!-- Импорт файла -->
+                    <!-- РРјРїРѕСЂС‚ С„Р°Р№Р»Р° -->
                     <Button
                         x:Name="ImportButton"
                         HorizontalAlignment="Stretch"
                         Click="OnImportClicked"
-                        Content="Импортировать файл" />
+                        Content="РРјРїРѕСЂС‚РёСЂРѕРІР°С‚СЊ С„Р°Р№Р»" />
 
-                    <!-- Секция транскрипции -->
+                    <!-- РЎРµРєС†РёСЏ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё -->
                     <Border
                         x:Name="TranscriptionControlSection"
                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -286,9 +286,9 @@
                         Padding="12"
                         Visibility="Collapsed">
                         <StackPanel Spacing="8">
-                            <TextBlock FontSize="14" FontWeight="Medium" Text="Транскрипция" />
+                            <TextBlock FontSize="14" FontWeight="Medium" Text="РўСЂР°РЅСЃРєСЂРёРїС†РёСЏ" />
 
-                            <!-- Прогресс -->
+                            <!-- РџСЂРѕРіСЂРµСЃСЃ -->
                             <StackPanel x:Name="TranscriptionProgressPanel" Spacing="8" Visibility="Collapsed">
                                 <ProgressBar
                                     x:Name="TranscriptionProgressBar"
@@ -297,14 +297,14 @@
                                     IsIndeterminate="True"
                                     Height="4" />
 
-                                <!-- Основной статус -->
+                                <!-- РћСЃРЅРѕРІРЅРѕР№ СЃС‚Р°С‚СѓСЃ -->
                                 <TextBlock
                                     x:Name="TranscriptionStatusText"
                                     FontSize="14"
                                     FontWeight="SemiBold"
-                                    Text="Подготовка..." />
+                                    Text="РџРѕРґРіРѕС‚РѕРІРєР°..." />
 
-                                <!-- Детальная информация -->
+                                <!-- Р”РµС‚Р°Р»СЊРЅР°СЏ РёРЅС„РѕСЂРјР°С†РёСЏ -->
                                 <Grid x:Name="TranscriptionDetailsGrid" Visibility="Collapsed">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -316,50 +316,64 @@
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Прошло:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="ElapsedTimeText" Grid.Row="0" Grid.Column="1" Text="—" FontSize="12" Margin="0,0,0,4" />
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="РџСЂРѕС€Р»Рѕ:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="ElapsedTimeText" Grid.Row="0" Grid.Column="1" Text="вЂ”" FontSize="12" Margin="0,0,0,4" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Скорость:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="SpeedText" Grid.Row="1" Grid.Column="1" Text="—" FontSize="12" Margin="0,0,0,4" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="РЎРєРѕСЂРѕСЃС‚СЊ:" FontSize="12" Margin="0,0,8,4" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="SpeedText" Grid.Row="1" Grid.Column="1" Text="вЂ”" FontSize="12" Margin="0,0,0,4" />
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Осталось:" FontSize="12" Margin="0,0,8,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="RemainingTimeText" Grid.Row="2" Grid.Column="1" Text="—" FontSize="12" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="РћСЃС‚Р°Р»РѕСЃСЊ:" FontSize="12" Margin="0,0,8,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="RemainingTimeText" Grid.Row="2" Grid.Column="1" Text="вЂ”" FontSize="12" />
                                 </Grid>
                             </StackPanel>
 
-                            <!-- Статистика после завершения -->
+                            <!-- РЎС‚Р°С‚РёСЃС‚РёРєР° РїРѕСЃР»Рµ Р·Р°РІРµСЂС€РµРЅРёСЏ -->
                             <StackPanel x:Name="TranscriptionStatsPanel" Spacing="4" Visibility="Collapsed">
-                                <TextBlock Text="Статистика" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,4" />
+                                <TextBlock Text="РЎС‚Р°С‚РёСЃС‚РёРєР°" FontSize="12" FontWeight="SemiBold" Margin="0,8,0,4" />
                                 <TextBlock x:Name="TranscriptionStatsText" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
 
-                            <!-- Кнопка расшифровки -->
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Режим:" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox
+                                    x:Name="TranscriptionModeComboBox"
+                                    Grid.Column="1"
+                                    SelectionChanged="OnTranscriptionModeChanged">
+                                    <ComboBoxItem Content="Quality (точнее)" Tag="quality" />
+                                    <ComboBoxItem Content="Light (быстрее)" Tag="light" />
+                                </ComboBox>
+                            </Grid>
+                            <!-- РљРЅРѕРїРєР° СЂР°СЃС€РёС„СЂРѕРІРєРё -->
                             <Button
                                 x:Name="TranscribeButton"
                                 HorizontalAlignment="Stretch"
                                 Click="OnTranscribeClicked"
-                                Content="Расшифровать" />
+                                Content="Р Р°СЃС€РёС„СЂРѕРІР°С‚СЊ" />
 
                             <!-- Whisper warning -->
                             <InfoBar
                                 x:Name="WhisperWarningBar"
                                 IsOpen="False"
                                 Severity="Warning"
-                                Title="Whisper не найден"
-                                Message="Скачайте faster-whisper-xxl" />
+                                Title="Whisper РЅРµ РЅР°Р№РґРµРЅ"
+                                Message="РЎРєР°С‡Р°Р№С‚Рµ faster-whisper-xxl" />
 
                             <Button
                                 x:Name="DownloadRuntimeButton"
                                 HorizontalAlignment="Stretch"
                                 Click="OnDownloadRuntimeClicked"
-                                Content="Скачать движок Whisper XXL"
+                                Content="РЎРєР°С‡Р°С‚СЊ РґРІРёР¶РѕРє Whisper XXL"
                                 Visibility="Collapsed" />
 
                             <Button
                                 x:Name="CancelRuntimeDownloadButton"
                                 HorizontalAlignment="Stretch"
                                 Click="OnCancelRuntimeDownloadClicked"
-                                Content="Отменить загрузку движка"
+                                Content="РћС‚РјРµРЅРёС‚СЊ Р·Р°РіСЂСѓР·РєСѓ РґРІРёР¶РєР°"
                                 Visibility="Collapsed" />
 
                             <ProgressBar
@@ -380,14 +394,14 @@
                                 x:Name="DownloadModelButton"
                                 HorizontalAlignment="Stretch"
                                 Click="OnDownloadModelClicked"
-                                Content="Скачать модель Whisper"
+                                Content="РЎРєР°С‡Р°С‚СЊ РјРѕРґРµР»СЊ Whisper"
                                 Visibility="Collapsed" />
 
                             <Button
                                 x:Name="CancelModelDownloadButton"
                                 HorizontalAlignment="Stretch"
                                 Click="OnCancelModelDownloadClicked"
-                                Content="Отменить загрузку модели"
+                                Content="РћС‚РјРµРЅРёС‚СЊ Р·Р°РіСЂСѓР·РєСѓ РјРѕРґРµР»Рё"
                                 Visibility="Collapsed" />
 
                             <ProgressBar
@@ -408,7 +422,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Колонка 3: Панель транскрипции -->
+            <!-- РљРѕР»РѕРЅРєР° 3: РџР°РЅРµР»СЊ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё -->
             <Border
                 Grid.Column="3"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
@@ -422,7 +436,7 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- Заголовок с кнопкой сохранения -->
+                    <!-- Р—Р°РіРѕР»РѕРІРѕРє СЃ РєРЅРѕРїРєРѕР№ СЃРѕС…СЂР°РЅРµРЅРёСЏ -->
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -432,7 +446,7 @@
                             Grid.Column="0"
                             FontSize="16"
                             FontWeight="SemiBold"
-                            Text="Расшифровка"
+                            Text="Р Р°СЃС€РёС„СЂРѕРІРєР°"
                             VerticalAlignment="Center" />
                         <Button
                             x:Name="SaveTranscriptionButton"
@@ -440,7 +454,7 @@
                             Click="OnSaveTranscriptionClicked"
                             Visibility="Collapsed"
                             Padding="8,4"
-                            ToolTipService.ToolTip="Сохранить изменения">
+                            ToolTipService.ToolTip="РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Ellipse
                                     x:Name="SaveIndicator"
@@ -455,7 +469,7 @@
                         </Button>
                     </Grid>
 
-                    <!-- Список спикеров (редактируемые имена) -->
+                    <!-- РЎРїРёСЃРѕРє СЃРїРёРєРµСЂРѕРІ (СЂРµРґР°РєС‚РёСЂСѓРµРјС‹Рµ РёРјРµРЅР°) -->
                     <StackPanel
                         x:Name="SpeakersPanel"
                         Grid.Row="1"
@@ -464,7 +478,7 @@
                         <TextBlock
                             FontSize="12"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="Спикеры (двойной клик для редактирования)" />
+                            Text="РЎРїРёРєРµСЂС‹ (РґРІРѕР№РЅРѕР№ РєР»РёРє РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ)" />
                         <ItemsRepeater
                             x:Name="SpeakersRepeater"
                             ItemsSource="{x:Bind Speakers, Mode=OneWay}">
@@ -491,7 +505,7 @@
                         </ItemsRepeater>
                     </StackPanel>
 
-                    <!-- Список сегментов транскрипции -->
+                    <!-- РЎРїРёСЃРѕРє СЃРµРіРјРµРЅС‚РѕРІ С‚СЂР°РЅСЃРєСЂРёРїС†РёРё -->
                     <ListView
                         x:Name="TranscriptionListView"
                         Grid.Row="2"
@@ -513,7 +527,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Timestamp (кликабельный) -->
+                                    <!-- Timestamp (РєР»РёРєР°Р±РµР»СЊРЅС‹Р№) -->
                                     <Button
                                         Grid.Column="0"
                                         Content="{x:Bind TimestampDisplay}"
@@ -527,9 +541,9 @@
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         VerticalAlignment="Top"
                                         HorizontalAlignment="Left"
-                                        ToolTipService.ToolTip="Воспроизвести сегмент (клик)" />
+                                        ToolTipService.ToolTip="Р’РѕСЃРїСЂРѕРёР·РІРµСЃС‚Рё СЃРµРіРјРµРЅС‚ (РєР»РёРє)" />
 
-                                    <!-- Speaker (с контекстным меню) -->
+                                    <!-- Speaker (СЃ РєРѕРЅС‚РµРєСЃС‚РЅС‹Рј РјРµРЅСЋ) -->
                                     <Border
                                         Grid.Column="1"
                                         Background="{ThemeResource AccentFillColorDefaultBrush}"
@@ -541,7 +555,7 @@
                                         <Border.ContextFlyout>
                                             <MenuFlyout>
                                                 <MenuFlyoutItem
-                                                    Text="Переименовать спикера"
+                                                    Text="РџРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ СЃРїРёРєРµСЂР°"
                                                     Click="OnRenameSpeakerClicked"
                                                     Tag="{x:Bind}" />
                                             </MenuFlyout>
@@ -552,10 +566,10 @@
                                             FontWeight="SemiBold"
                                             Foreground="White"
                                             TextTrimming="CharacterEllipsis"
-                                            ToolTipService.ToolTip="ПКМ для переименования" />
+                                            ToolTipService.ToolTip="РџРљРњ РґР»СЏ РїРµСЂРµРёРјРµРЅРѕРІР°РЅРёСЏ" />
                                     </Border>
 
-                                    <!-- Text (редактируемый) -->
+                                    <!-- Text (СЂРµРґР°РєС‚РёСЂСѓРµРјС‹Р№) -->
                                     <TextBox
                                         Grid.Column="2"
                                         Text="{x:Bind Text, Mode=TwoWay}"
@@ -578,3 +592,4 @@
         </Grid>
     </Page.Content>
 </Page>
+

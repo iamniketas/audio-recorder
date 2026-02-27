@@ -81,6 +81,40 @@ public class LocalSettingsService : ISettingsService
         }
     }
 
+    public void SaveTranscriptionMode(string mode)
+    {
+        try
+        {
+            var normalized = string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase)
+                ? "light"
+                : "quality";
+
+            var settings = LoadSettings();
+            settings.TranscriptionMode = normalized;
+            SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ошибка сохранения режима транскрипции: {ex.Message}");
+        }
+    }
+
+    public string LoadTranscriptionMode()
+    {
+        try
+        {
+            var settings = LoadSettings();
+            return string.Equals(settings.TranscriptionMode, "light", StringComparison.OrdinalIgnoreCase)
+                ? "light"
+                : "quality";
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Ошибка загрузки режима транскрипции: {ex.Message}");
+            return "quality";
+        }
+    }
+
     private AppSettings LoadSettings()
     {
         if (!File.Exists(_settingsFilePath))
@@ -103,5 +137,6 @@ public class LocalSettingsService : ISettingsService
     {
         public List<string> SelectedSourceIds { get; set; } = new();
         public string? OutputFolder { get; set; }
+        public string TranscriptionMode { get; set; } = "quality";
     }
 }

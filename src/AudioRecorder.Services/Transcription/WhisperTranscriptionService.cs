@@ -14,6 +14,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
 {
     private readonly string _whisperPath;
     private readonly string _modelName;
+    private readonly bool _enableDiarization;
     private TimeSpan _audioDuration;
     private DateTime _transcriptionStartTime;
 
@@ -21,10 +22,14 @@ public partial class WhisperTranscriptionService : ITranscriptionService
 
     public bool IsWhisperAvailable => File.Exists(_whisperPath);
 
-    public WhisperTranscriptionService(string? whisperPath = null, string modelName = "large-v2")
+    public WhisperTranscriptionService(
+        string? whisperPath = null,
+        string modelName = "large-v2",
+        bool enableDiarization = true)
     {
         _whisperPath = whisperPath ?? WhisperPaths.GetDefaultWhisperPath();
         _modelName = modelName;
+        _enableDiarization = enableDiarization;
     }
     public async Task<TranscriptionResult> TranscribeAsync(string audioPath, CancellationToken ct = default)
     {
@@ -306,7 +311,10 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         sb.Append("--standard ");                 // Стандартный формат
         sb.Append("-f txt ");
         sb.Append($"-m {_modelName} ");
-        sb.Append("--diarize pyannote_v3.1 ");
+        if (_enableDiarization)
+        {
+            sb.Append("--diarize pyannote_v3.1 ");
+        }
         sb.Append($"\"{audioPath}\"");
         return sb.ToString();
     }

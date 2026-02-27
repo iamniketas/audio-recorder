@@ -24,4 +24,14 @@ public interface ISettingsService
     /// Загрузить путь к папке для записей (null = папка по умолчанию)
     /// </summary>
     string? LoadOutputFolder();
+
+    /// <summary>
+    /// Сохранить режим транскрипции: "quality" или "light"
+    /// </summary>
+    void SaveTranscriptionMode(string mode);
+
+    /// <summary>
+    /// Загрузить режим транскрипции (по умолчанию "quality")
+    /// </summary>
+    string LoadTranscriptionMode();
 }

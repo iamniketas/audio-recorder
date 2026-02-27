@@ -153,7 +153,7 @@ public class TranscriptionSegmentViewModel : INotifyPropertyChanged
 public sealed partial class MainPage : Page
 {
     private readonly IAudioCaptureService _audioCaptureService;
-    private readonly ITranscriptionService _transcriptionService;
+    private ITranscriptionService _transcriptionService;
     private readonly ISettingsService _settingsService;
     private readonly IAudioPlaybackService _playbackService;
     private readonly ISessionPipelineService _sessionPipelineService;
@@ -175,6 +175,7 @@ public sealed partial class MainPage : Page
     private bool _isUpdateFlowRunning;
     private UpdateInfo? _availableUpdateInfo;
     private VelopackAsset? _readyToApplyRelease;
+    private string _transcriptionMode = "quality";
     // РЎР»РѕРІР°СЂСЊ: РѕСЂРёРіРёРЅР°Р»СЊРЅС‹Р№ ID СЃРїРёРєРµСЂР° в†’ С‚РµРєСѓС‰РµРµ РёРјСЏ
     private readonly Dictionary<string, string> _speakerNameMap = new();
 
@@ -190,10 +191,11 @@ public sealed partial class MainPage : Page
         _audioCaptureService = new WasapiAudioCaptureService();
         _audioCaptureService.RecordingStateChanged += OnRecordingStateChanged;
 
-        _transcriptionService = new WhisperTranscriptionService();
+        _settingsService = new LocalSettingsService();
+        _transcriptionMode = _settingsService.LoadTranscriptionMode();
+        _transcriptionService = CreateTranscriptionService(_transcriptionMode);
         _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
 
-        _settingsService = new LocalSettingsService();
         _playbackService = new AudioPlaybackService();
         _sessionPipelineService = new SessionPipelineService();
         _playbackService.StateChanged += OnPlaybackStateChanged;
@@ -226,6 +228,7 @@ public sealed partial class MainPage : Page
     {
         await LoadAudioSourcesAsync();
         LoadOutputFolderSetting();
+        LoadTranscriptionModeSetting();
 
         if (_runtimeInstallerService.IsRuntimeInstalled())
         {
@@ -235,6 +238,42 @@ public sealed partial class MainPage : Page
         _ = CheckForUpdatesAsync(userInitiated: false);
         UpdateTranscriptionAvailabilityUi();
         _ = TryAutoSetupWhisperAsync();
+    }
+
+    private ITranscriptionService CreateTranscriptionService(string mode)
+    {
+        bool enableDiarization = !string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase);
+        return new WhisperTranscriptionService(enableDiarization: enableDiarization);
+    }
+
+    private void ApplyTranscriptionMode(string mode, bool save)
+    {
+        var normalized = string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase) ? "light" : "quality";
+        if (string.Equals(_transcriptionMode, normalized, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _transcriptionService.ProgressChanged -= OnTranscriptionProgressChanged;
+        _transcriptionService = CreateTranscriptionService(normalized);
+        _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
+        _transcriptionMode = normalized;
+
+        if (save)
+        {
+            _settingsService.SaveTranscriptionMode(_transcriptionMode);
+        }
+
+        UpdateTranscriptionAvailabilityUi();
+    }
+
+    private void LoadTranscriptionModeSetting()
+    {
+        var savedMode = _settingsService.LoadTranscriptionMode();
+        _transcriptionMode = string.Equals(savedMode, "light", StringComparison.OrdinalIgnoreCase) ? "light" : "quality";
+
+        if (TranscriptionModeComboBox.Items.Count >= 2)
+        {
+            TranscriptionModeComboBox.SelectedIndex = _transcriptionMode == "light" ? 1 : 0;
+        }
     }
 
     private async Task TryAutoSetupWhisperAsync()
@@ -792,6 +831,15 @@ public sealed partial class MainPage : Page
                 TranscriptionProgressBar.IsIndeterminate = false;
             }
         }
+    }
+
+    private void OnTranscriptionModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox comboBox || comboBox.SelectedItem is not ComboBoxItem item)
+            return;
+
+        var mode = item.Tag?.ToString() ?? "quality";
+        ApplyTranscriptionMode(mode, save: true);
     }
 
     private void ShowTranscriptionSection()

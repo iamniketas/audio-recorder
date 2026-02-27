@@ -5,6 +5,18 @@ All notable changes to the Contora project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-02-27
+
+### Added
+- Transcription mode selector in UI: `Quality` and `Light`.
+
+### Changed
+- Added persisted transcription mode in local settings (`quality` / `light`).
+- `Light` mode now runs Whisper without diarization for faster CPU execution on low-end machines.
+
+### Fixed
+- Improved low-spec usability by making fast mode a first-class, one-click option.
+
 ## [0.3.0] - 2026-02-27
 
 ### Added
