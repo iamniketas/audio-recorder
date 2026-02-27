@@ -1,4 +1,4 @@
-using Velopack;
+﻿using Velopack;
 using Velopack.Sources;
 
 namespace AudioRecorder.Services.Updates;
@@ -99,3 +99,4 @@ public sealed class AppUpdateService : IDisposable
         // UpdateManager in current Velopack version is not IDisposable.
     }
 }
+

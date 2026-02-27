@@ -5,6 +5,16 @@
 Р¤РѕСЂРјР°С‚ РѕСЃРЅРѕРІР°РЅ РЅР° [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 Рё РїСЂРѕРµРєС‚ РїСЂРёРґРµСЂР¶РёРІР°РµС‚СЃСЏ [СЃРµРјР°РЅС‚РёС‡РµСЃРєРѕРіРѕ РІРµСЂСЃРёРѕРЅРёСЂРѕРІР°РЅРёСЏ](https://semver.org/lang/ru/).
 
+## [0.2.7] - 2026-02-27
+
+### Fixed
+- Fixed intermittent mojibake in Russian UI labels by normalizing runtime UI strings that overwrite XAML defaults.
+- Added repository `.editorconfig` UTF-8 policy to prevent accidental ANSI saves for source/UI files.
+
+### Release
+- Published Windows installer as a GitHub Release asset (`Contora-win-Setup.exe`).
+- Kept Whisper runtime/model out of installer package; runtime and model are downloaded in-app on demand.
+
 ## [0.2.6] - 2026-02-19
 
 ### Fixed

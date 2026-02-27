@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using AudioRecorder.Services.Transcription;
 using SharpCompress.Archives.SevenZip;
 using SharpCompress.Common;
@@ -259,3 +259,4 @@ public sealed class WhisperRuntimeInstallerService
         }
     }
 }
+
