@@ -156,6 +156,45 @@ Filename: "{app}\Contora.exe"; Description: "Launch Contora"; Flags: nowait post
     Invoke-External -Command @($isccPath, "/Qp", $issPath)
 }
 
+function Sync-ClassicInstallerAsset {
+    param(
+        [string]$Tag,
+        [string]$ReleaseDir,
+        [string]$RepoUrl
+    )
+
+    $setupPath = Join-Path $ReleaseDir "Setup.exe"
+    if (-not (Test-Path $setupPath)) {
+        throw "Classic installer was not created: $setupPath"
+    }
+
+    $gh = Get-Command gh -ErrorAction SilentlyContinue
+    if (-not $gh) {
+        Write-Warning "gh CLI is not installed; skipping Setup.exe release asset sync."
+        return
+    }
+
+    $repo = $RepoUrl
+    if ($repo -match '^https://github\.com/') {
+        $repo = $repo -replace '^https://github\.com/', ''
+        $repo = $repo.TrimEnd('/')
+    }
+
+    try {
+        & gh release upload $Tag $setupPath --repo $repo --clobber | Out-Null
+    }
+    catch {
+        throw "Failed to upload Setup.exe via gh CLI: $($_.Exception.Message)"
+    }
+
+    try {
+        & gh release delete-asset $Tag "Contora-win-Setup.exe" --repo $repo --yes | Out-Null
+    }
+    catch {
+        Write-Warning "Could not delete Contora-win-Setup.exe from release $Tag. Please remove it manually."
+    }
+}
+
 function Get-VelopackVersion {
     param([string]$CsprojPath)
 
@@ -281,6 +320,10 @@ if (-not $NoUpload) {
     }
 
     Invoke-External -Command ($vpk.Prefix + $uploadArgs) -Dry:$DryRun
+
+    if (-not $DryRun) {
+        Sync-ClassicInstallerAsset -Tag $releaseTag -ReleaseDir $releaseDir -RepoUrl $RepoUrl
+    }
 }
 
 Write-Host "`nDone. Artifacts: $releaseDir" -ForegroundColor Green
