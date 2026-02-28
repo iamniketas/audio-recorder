@@ -393,6 +393,41 @@
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                 TextWrapping="Wrap"
                                 Visibility="Collapsed" />
+
+                            <InfoBar
+                                x:Name="FfmpegWarningBar"
+                                IsOpen="False"
+                                Severity="Informational"
+                                Title="FFmpeg is not installed"
+                                Message="FFmpeg is needed for video import. Download ~140 MB." />
+
+                            <Button
+                                x:Name="DownloadFfmpegButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnDownloadFfmpegClicked"
+                                Content="Download FFmpeg"
+                                Visibility="Collapsed" />
+
+                            <Button
+                                x:Name="CancelFfmpegDownloadButton"
+                                HorizontalAlignment="Stretch"
+                                Click="OnCancelFfmpegDownloadClicked"
+                                Content="Cancel FFmpeg download"
+                                Visibility="Collapsed" />
+
+                            <ProgressBar
+                                x:Name="FfmpegDownloadProgressBar"
+                                Minimum="0"
+                                Maximum="100"
+                                Height="4"
+                                Visibility="Collapsed" />
+
+                            <TextBlock
+                                x:Name="FfmpegDownloadStatusText"
+                                FontSize="11"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                TextWrapping="Wrap"
+                                Visibility="Collapsed" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

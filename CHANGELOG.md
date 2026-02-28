@@ -5,6 +5,16 @@ All notable changes to the Contora project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-02-28
+
+### Added
+- Automatic FFmpeg download for video import support (~140 MB, installed to LocalAppData).
+- FFmpeg status indicator in the Transcription section with download button and progress.
+
+### Changed
+- Runtime, model, and FFmpeg downloads are no longer auto-started. Users must initiate them manually.
+- Model download messages now show estimated size and quality level for each model.
+
 ## [0.3.2] - 2026-02-27
 
 ### Fixed

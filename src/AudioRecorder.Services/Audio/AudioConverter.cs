@@ -123,7 +123,14 @@ public static class AudioConverter
         if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
             return envPath;
 
-        // Runtime from Faster-Whisper-XXL commonly keeps ffmpeg.exe рядом с faster-whisper-xxl.exe.
+        // Canonical Contora runtime path (%LOCALAPPDATA%\Contora\runtime\ffmpeg\ffmpeg.exe).
+        var canonicalPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Contora", "runtime", "ffmpeg", "ffmpeg.exe");
+        if (File.Exists(canonicalPath))
+            return canonicalPath;
+
+        // Runtime from Faster-Whisper-XXL commonly keeps ffmpeg.exe next to faster-whisper-xxl.exe.
         var whisperPath = WhisperPaths.GetDefaultWhisperPath();
         var whisperDir = Path.GetDirectoryName(whisperPath);
         if (!string.IsNullOrWhiteSpace(whisperDir))

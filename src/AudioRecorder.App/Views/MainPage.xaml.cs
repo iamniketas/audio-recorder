@@ -148,6 +148,7 @@ public sealed partial class MainPage : Page
     private readonly AppUpdateService _appUpdateService;
     private readonly WhisperRuntimeInstallerService _runtimeInstallerService;
     private WhisperModelDownloadService _modelDownloadService;
+    private readonly FfmpegInstallerService _ffmpegInstallerService;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly DispatcherQueueTimer _updateTimer;
     private string? _lastRecordingPath;
@@ -160,6 +161,8 @@ public sealed partial class MainPage : Page
     private CancellationTokenSource? _runtimeDownloadCts;
     private bool _isModelDownloadInProgress;
     private CancellationTokenSource? _modelDownloadCts;
+    private bool _isFfmpegDownloadInProgress;
+    private CancellationTokenSource? _ffmpegDownloadCts;
     private bool _isUpdateFlowRunning;
     private UpdateInfo? _availableUpdateInfo;
     private VelopackAsset? _readyToApplyRelease;
@@ -191,6 +194,7 @@ public sealed partial class MainPage : Page
         _appUpdateService = new AppUpdateService();
         _runtimeInstallerService = new WhisperRuntimeInstallerService();
         _modelDownloadService = new WhisperModelDownloadService(_whisperModel);
+        _ffmpegInstallerService = new FfmpegInstallerService();
 
         NotificationService.Initialize();
 
@@ -209,6 +213,9 @@ public sealed partial class MainPage : Page
             _modelDownloadCts?.Cancel();
             _modelDownloadCts?.Dispose();
             _modelDownloadCts = null;
+            _ffmpegDownloadCts?.Cancel();
+            _ffmpegDownloadCts?.Dispose();
+            _ffmpegDownloadCts = null;
             _appUpdateService.Dispose();
         };
     }
@@ -309,26 +316,19 @@ public sealed partial class MainPage : Page
         UpdateTranscriptionAvailabilityUi();
     }
 
-    private async Task TryAutoSetupWhisperAsync()
+    private Task TryAutoSetupWhisperAsync()
     {
-        if (_isRuntimeDownloadInProgress || _isModelDownloadInProgress)
-            return;
-
-        if (!_runtimeInstallerService.IsRuntimeInstalled())
-        {
-            await StartRuntimeDownloadAsync(autoStarted: true);
-        }
-
-        if (_runtimeInstallerService.IsRuntimeInstalled() && !_modelDownloadService.IsModelInstalled())
-        {
-            await StartModelDownloadAsync(autoStarted: true);
-        }
+        // Only update the UI to show what needs to be downloaded.
+        // The user must initiate downloads manually.
+        UpdateTranscriptionAvailabilityUi();
+        return Task.CompletedTask;
     }
 
     private void UpdateTranscriptionAvailabilityUi()
     {
         var whisperAvailable = _transcriptionService.IsWhisperAvailable;
         var modelInstalled = _modelDownloadService.IsModelInstalled();
+        var ffmpegInstalled = _ffmpegInstallerService.IsInstalled();
 
         DownloadRuntimeButton.Visibility = Visibility.Collapsed;
         CancelRuntimeDownloadButton.Visibility = Visibility.Collapsed;
@@ -338,11 +338,15 @@ public sealed partial class MainPage : Page
         CancelModelDownloadButton.Visibility = Visibility.Collapsed;
         ModelDownloadProgressBar.Visibility = Visibility.Collapsed;
         ModelDownloadStatusText.Visibility = Visibility.Collapsed;
+        DownloadFfmpegButton.Visibility = Visibility.Collapsed;
+        CancelFfmpegDownloadButton.Visibility = Visibility.Collapsed;
+        FfmpegDownloadProgressBar.Visibility = Visibility.Collapsed;
+        FfmpegDownloadStatusText.Visibility = Visibility.Collapsed;
 
         if (!whisperAvailable)
         {
             WhisperWarningBar.Title = "Whisper runtime is missing";
-            WhisperWarningBar.Message = "Download faster-whisper-xxl. It will be installed in LocalAppData.";
+            WhisperWarningBar.Message = "Download faster-whisper-xxl (~1.5 GB). It will be installed in LocalAppData.";
             WhisperWarningBar.IsOpen = true;
 
             TranscribeButton.IsEnabled = false;
@@ -351,28 +355,64 @@ public sealed partial class MainPage : Page
             CancelRuntimeDownloadButton.Visibility = _isRuntimeDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
             RuntimeDownloadProgressBar.Visibility = _isRuntimeDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
             RuntimeDownloadStatusText.Visibility = Visibility.Visible;
+
+            UpdateFfmpegUi(ffmpegInstalled);
             return;
         }
 
-        if (modelInstalled)
+        if (!modelInstalled)
         {
-            WhisperWarningBar.IsOpen = false;
-            TranscribeButton.IsEnabled = true;
+            var modelSize = _whisperModel switch
+            {
+                "small" => "~500 MB, good accuracy",
+                "medium" => "~1.5 GB, better accuracy",
+                _ => "~3 GB, best accuracy"
+            };
+            WhisperWarningBar.Title = "Whisper model is missing";
+            WhisperWarningBar.Message = $"Download model '{_whisperModel}' ({modelSize}). Stored in LocalAppData.";
+            WhisperWarningBar.IsOpen = true;
+            TranscribeButton.IsEnabled = false;
+
+            DownloadModelButton.Visibility = _isModelDownloadInProgress ? Visibility.Collapsed : Visibility.Visible;
+            CancelModelDownloadButton.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+            ModelDownloadProgressBar.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
+            ModelDownloadStatusText.Visibility = Visibility.Visible;
+
+            UpdateFfmpegUi(ffmpegInstalled);
             return;
         }
 
-        WhisperWarningBar.Title = "Whisper model is missing";
-        WhisperWarningBar.Message = $"Download model '{_whisperModel}'. This is required once.";
-        WhisperWarningBar.IsOpen = true;
-        TranscribeButton.IsEnabled = false;
+        WhisperWarningBar.IsOpen = false;
+        TranscribeButton.IsEnabled = true;
 
-        DownloadModelButton.Visibility = _isModelDownloadInProgress ? Visibility.Collapsed : Visibility.Visible;
-        CancelModelDownloadButton.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
-        ModelDownloadProgressBar.Visibility = _isModelDownloadInProgress ? Visibility.Visible : Visibility.Collapsed;
-        ModelDownloadStatusText.Visibility = Visibility.Visible;
+        UpdateFfmpegUi(ffmpegInstalled);
     }
 
-    private async Task StartModelDownloadAsync(bool autoStarted)
+    private void UpdateFfmpegUi(bool ffmpegInstalled)
+    {
+        if (ffmpegInstalled)
+        {
+            FfmpegWarningBar.IsOpen = false;
+            return;
+        }
+
+        FfmpegWarningBar.IsOpen = true;
+
+        if (_isFfmpegDownloadInProgress)
+        {
+            DownloadFfmpegButton.Visibility = Visibility.Collapsed;
+            CancelFfmpegDownloadButton.Visibility = Visibility.Visible;
+            FfmpegDownloadProgressBar.Visibility = Visibility.Visible;
+            FfmpegDownloadStatusText.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            DownloadFfmpegButton.Visibility = Visibility.Visible;
+            FfmpegDownloadStatusText.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async Task StartModelDownloadAsync()
     {
         if (_isModelDownloadInProgress)
             return;
@@ -387,9 +427,7 @@ public sealed partial class MainPage : Page
         ModelDownloadProgressBar.Visibility = Visibility.Visible;
         ModelDownloadProgressBar.Value = 0;
         ModelDownloadStatusText.Visibility = Visibility.Visible;
-        ModelDownloadStatusText.Text = autoStarted
-            ? $"First-time setup: downloading model '{_whisperModel}'..."
-            : $"Downloading model '{_whisperModel}'...";
+        ModelDownloadStatusText.Text = $"Downloading model '{_whisperModel}'...";
 
         try
         {
@@ -426,7 +464,7 @@ public sealed partial class MainPage : Page
 
     private async void OnDownloadModelClicked(object sender, RoutedEventArgs e)
     {
-        await StartModelDownloadAsync(autoStarted: false);
+        await StartModelDownloadAsync();
     }
 
     private void OnCancelModelDownloadClicked(object sender, RoutedEventArgs e)
@@ -434,7 +472,7 @@ public sealed partial class MainPage : Page
         _modelDownloadCts?.Cancel();
     }
 
-    private async Task StartRuntimeDownloadAsync(bool autoStarted)
+    private async Task StartRuntimeDownloadAsync()
     {
         if (_isRuntimeDownloadInProgress)
             return;
@@ -447,9 +485,7 @@ public sealed partial class MainPage : Page
         RuntimeDownloadProgressBar.Visibility = Visibility.Visible;
         RuntimeDownloadProgressBar.Value = 0;
         RuntimeDownloadStatusText.Visibility = Visibility.Visible;
-        RuntimeDownloadStatusText.Text = autoStarted
-            ? "First-time setup: downloading Whisper XXL runtime..."
-            : "Downloading Whisper XXL runtime...";
+        RuntimeDownloadStatusText.Text = "Downloading Whisper XXL runtime...";
 
         try
         {
@@ -479,20 +515,65 @@ public sealed partial class MainPage : Page
             UpdateTranscriptionAvailabilityUi();
         }
 
-        if (_runtimeInstallerService.IsRuntimeInstalled() && !_modelDownloadService.IsModelInstalled())
-        {
-            await StartModelDownloadAsync(autoStarted: true);
-        }
     }
 
     private async void OnDownloadRuntimeClicked(object sender, RoutedEventArgs e)
     {
-        await StartRuntimeDownloadAsync(autoStarted: false);
+        await StartRuntimeDownloadAsync();
     }
 
     private void OnCancelRuntimeDownloadClicked(object sender, RoutedEventArgs e)
     {
         _runtimeDownloadCts?.Cancel();
+    }
+
+    private async Task StartFfmpegDownloadAsync()
+    {
+        if (_isFfmpegDownloadInProgress)
+            return;
+
+        _isFfmpegDownloadInProgress = true;
+        _ffmpegDownloadCts = new CancellationTokenSource();
+
+        DownloadFfmpegButton.Visibility = Visibility.Collapsed;
+        CancelFfmpegDownloadButton.Visibility = Visibility.Visible;
+        FfmpegDownloadProgressBar.Visibility = Visibility.Visible;
+        FfmpegDownloadProgressBar.Value = 0;
+        FfmpegDownloadStatusText.Visibility = Visibility.Visible;
+        FfmpegDownloadStatusText.Text = "Downloading FFmpeg...";
+
+        try
+        {
+            var result = await _ffmpegInstallerService.InstallAsync(
+                progress =>
+                {
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        FfmpegDownloadProgressBar.Value = progress.Percent;
+                        FfmpegDownloadStatusText.Text = progress.StatusMessage;
+                    });
+                },
+                _ffmpegDownloadCts.Token);
+
+            FfmpegDownloadStatusText.Text = result.StatusMessage;
+        }
+        finally
+        {
+            _ffmpegDownloadCts?.Dispose();
+            _ffmpegDownloadCts = null;
+            _isFfmpegDownloadInProgress = false;
+            UpdateTranscriptionAvailabilityUi();
+        }
+    }
+
+    private async void OnDownloadFfmpegClicked(object sender, RoutedEventArgs e)
+    {
+        await StartFfmpegDownloadAsync();
+    }
+
+    private void OnCancelFfmpegDownloadClicked(object sender, RoutedEventArgs e)
+    {
+        _ffmpegDownloadCts?.Cancel();
     }
 
     private async Task CheckForUpdatesAsync(bool userInitiated)
