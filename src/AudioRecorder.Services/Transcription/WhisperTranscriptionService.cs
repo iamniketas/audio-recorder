@@ -12,6 +12,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     private readonly string _whisperPath;
     private readonly string _modelName;
     private readonly bool _enableDiarization;
+    private readonly string _deviceMode; // "auto", "cuda", "cpu"
     private TimeSpan _audioDuration;
     private DateTime _transcriptionStartTime;
 
@@ -22,11 +23,13 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     public WhisperTranscriptionService(
         string? whisperPath = null,
         string modelName = "large-v2",
-        bool enableDiarization = true)
+        bool enableDiarization = true,
+        string deviceMode = "auto")
     {
         _whisperPath = whisperPath ?? WhisperPaths.GetDefaultWhisperPath();
         _modelName = modelName;
         _enableDiarization = enableDiarization;
+        _deviceMode = deviceMode;
     }
     public async Task<TranscriptionResult> TranscribeAsync(string audioPath, CancellationToken ct = default)
     {
@@ -102,7 +105,7 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         catch (OperationCanceledException)
         {
             RaiseProgress(TranscriptionState.Failed, 0, "Transcription cancelled");
-            return new TranscriptionResult(false, null, [], "Cancelled by user");
+            throw;
         }
         catch (Exception ex)
         {
@@ -241,13 +244,15 @@ public partial class WhisperTranscriptionService : ITranscriptionService
             }
             else
             {
-                var errorMessage = string.Join(Environment.NewLine, errorLines);
-                if (string.IsNullOrWhiteSpace(errorMessage))
-                    errorMessage = $"Whisper exited with code {process.ExitCode}";
+                var rawError = string.Join(Environment.NewLine, errorLines);
+                var friendlyError = TryGetFriendlyErrorMessage(rawError, _modelName)
+                                    ?? (string.IsNullOrWhiteSpace(rawError)
+                                        ? $"Whisper завершился с кодом {process.ExitCode}"
+                                        : rawError);
 
-                errorMessage += $"\n\nFull log saved to:\n{logPath}";
+                friendlyError += $"\n\nПолный лог сохранён:\n{logPath}";
 
-                return new TranscriptionResult(false, null, [], errorMessage);
+                return new TranscriptionResult(false, null, [], friendlyError);
             }
         }
 
@@ -274,9 +279,20 @@ public partial class WhisperTranscriptionService : ITranscriptionService
         var sb = new StringBuilder();
         sb.Append("-pp ");                       // Explicit progress output.
         sb.Append($"-o \"{outputDir}\" ");
-        sb.Append("--standard ");                 // Standard output format.
+        sb.Append("--standard ");                // Standard output format.
         sb.Append("-f txt ");
         sb.Append($"-m {_modelName} ");
+
+        // Device selection based on mode setting.
+        if (_deviceMode == "cpu")
+        {
+            sb.Append("--device cpu --compute_type int8 ");
+        }
+        else if (_deviceMode == "cuda")
+        {
+            sb.Append("--device cuda ");
+        }
+        // "auto": let faster-whisper-xxl decide automatically.
 
         // Point faster-whisper-xxl to the directory containing model folders.
         var modelsRoot = WhisperPaths.GetModelsRoot(_whisperPath);
@@ -491,6 +507,55 @@ public partial class WhisperTranscriptionService : ITranscriptionService
     {
         ProgressChanged?.Invoke(this, new TranscriptionProgress(
             state, percent, message, elapsed, remaining, processed, total, speed));
+    }
+
+    private static string? TryGetFriendlyErrorMessage(string rawError, string modelName)
+    {
+        if (rawError.Contains("mkl_malloc: failed to allocate memory", StringComparison.OrdinalIgnoreCase) ||
+            rawError.Contains("failed to allocate memory", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Недостаточно памяти для загрузки модели «{modelName}».\n\n" +
+                   "Что делать:\n" +
+                   "• Откройте Настройки → Models и выберите модель меньшего размера (например, «small» или «tiny»)\n" +
+                   "• Или переключитесь на CPU-режим: Настройки → General → Device mode → CPU";
+        }
+
+        if (rawError.Contains("CUDA out of memory", StringComparison.OrdinalIgnoreCase) ||
+            rawError.Contains("out of memory", StringComparison.OrdinalIgnoreCase) && rawError.Contains("CUDA"))
+        {
+            return $"Видеопамяти недостаточно для модели «{modelName}».\n\n" +
+                   "Что делать:\n" +
+                   "• Откройте Настройки → Models и выберите меньшую модель\n" +
+                   "• Или переключитесь на CPU-режим: Настройки → General → Device mode → CPU";
+        }
+
+        if (rawError.Contains("No CUDA GPUs are available", StringComparison.OrdinalIgnoreCase) ||
+            rawError.Contains("CUDA failed", StringComparison.OrdinalIgnoreCase) ||
+            rawError.Contains("nvml", StringComparison.OrdinalIgnoreCase) && rawError.Contains("error", StringComparison.OrdinalIgnoreCase))
+        {
+            return "GPU не поддерживает CUDA или видеодрайвер устарел.\n\n" +
+                   "Что делать:\n" +
+                   "• Переключитесь на CPU-режим: Настройки → General → Device mode → CPU\n" +
+                   "• Выберите модель small или tiny для приемлемой скорости на CPU";
+        }
+
+        if (rawError.Contains("model.bin", StringComparison.OrdinalIgnoreCase) &&
+            rawError.Contains("No such file", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Модель «{modelName}» не установлена.\n\n" +
+                   "Что делать:\n" +
+                   "• Откройте Настройки → Models → Download model и скачайте нужную модель";
+        }
+
+        if (rawError.Contains("faster-whisper-xxl.exe", StringComparison.OrdinalIgnoreCase) &&
+            rawError.Contains("not found", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Faster Whisper XXL не установлен.\n\n" +
+                   "Что делать:\n" +
+                   "• Откройте Настройки → Engines → Download runtime";
+        }
+
+        return null;
     }
 
     // "  1% |   35/4423 | 00:01<<02:22 | 30.73 audio seconds/s"

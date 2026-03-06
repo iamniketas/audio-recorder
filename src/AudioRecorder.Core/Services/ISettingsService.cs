@@ -17,4 +17,14 @@ public interface ISettingsService
     void SaveWhisperModel(string modelName);
 
     string LoadWhisperModel();
+
+    /// <summary>Device mode for transcription: "auto", "cuda", or "cpu".</summary>
+    void SaveDeviceMode(string mode);
+
+    string LoadDeviceMode();
+
+    /// <summary>Custom root directory where faster-whisper-xxl is installed. Null = default canonical path.</summary>
+    void SaveInstallRootPath(string path);
+
+    string? LoadInstallRootPath();
 }

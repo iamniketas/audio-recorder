@@ -8,7 +8,11 @@ namespace AudioRecorder.Services.Models;
 public sealed record RuntimeInstallProgress(
     string Stage,
     int Percent,
-    string StatusMessage);
+    string StatusMessage,
+    long DownloadedBytes = 0,
+    long TotalBytes = 0,
+    double SpeedBytesPerSecond = 0,
+    TimeSpan? Eta = null);
 
 public sealed record RuntimeInstallResult(
     bool Success,
@@ -24,18 +28,40 @@ public sealed class WhisperRuntimeInstallerService
     private readonly string _runtimeRoot;
     private readonly string _runtimeExePath;
 
-    public WhisperRuntimeInstallerService()
+    /// <param name="customInstallRoot">
+    /// Custom directory under which the "faster-whisper-xxl" folder will be created.
+    /// Pass null to use the default canonical location (%LocalAppData%\Contora\runtime\).
+    /// </param>
+    public WhisperRuntimeInstallerService(string? customInstallRoot = null)
     {
-        _runtimeRoot = WhisperPaths.GetCanonicalRuntimeRoot();
-        _runtimeExePath = WhisperPaths.GetCanonicalWhisperPath();
+        if (!string.IsNullOrWhiteSpace(customInstallRoot))
+        {
+            _runtimeRoot = Path.Combine(customInstallRoot, "faster-whisper-xxl");
+            _runtimeExePath = Path.Combine(_runtimeRoot, "faster-whisper-xxl.exe");
+        }
+        else
+        {
+            _runtimeRoot = WhisperPaths.GetCanonicalRuntimeRoot();
+            _runtimeExePath = WhisperPaths.GetCanonicalWhisperPath();
+        }
     }
 
     public bool IsRuntimeInstalled()
     {
-        return File.Exists(_runtimeExePath);
+        // Check the configured path first, then fall back to env-var resolution.
+        if (File.Exists(_runtimeExePath)) return true;
+        var defaultPath = WhisperPaths.GetDefaultWhisperPath();
+        return File.Exists(defaultPath);
     }
 
-    public string GetRuntimeExePath() => _runtimeExePath;
+    public string GetRuntimeExePath()
+    {
+        if (File.Exists(_runtimeExePath)) return _runtimeExePath;
+        return WhisperPaths.GetDefaultWhisperPath();
+    }
+
+    /// <summary>Returns the directory where the runtime will be (or is) installed.</summary>
+    public string GetRuntimeRoot() => _runtimeRoot;
 
     /// <summary>Minimum runtime version required for diarization support.</summary>
     public static readonly Version MinimumRequiredVersion = new(245, 0);
@@ -113,24 +139,24 @@ public sealed class WhisperRuntimeInstallerService
 
             if (!File.Exists(sevenZipExe))
             {
-                onProgress(new RuntimeInstallProgress("download-7zr", 3, "Downloading 7zr.exe (~1.3 MB)..."));
+                onProgress(new RuntimeInstallProgress("download-7zr", 3, "Скачивание 7zr.exe (~1.3 МБ)..."));
                 Directory.CreateDirectory(Path.GetDirectoryName(sevenZipExe)!);
-                await DownloadFileAsync(SevenZipDownloadUrl, sevenZipExe, _ => { }, ct);
+                await DownloadFileAsync(SevenZipDownloadUrl, sevenZipExe,
+                    p => onProgress(p with { Stage = "download-7zr" }), ct,
+                    stage: "download-7zr", percentBase: 3, percentRange: 1);
             }
 
-            onProgress(new RuntimeInstallProgress("download-7zr", 4, "7zr.exe ready."));
+            onProgress(new RuntimeInstallProgress("download-7zr", 4, "7zr.exe готов."));
 
             var tempArchive = Path.Combine(Path.GetTempPath(), $"faster-whisper-xxl_{Guid.NewGuid():N}.7z");
             var tempExtractDir = Path.Combine(Path.GetTempPath(), $"faster-whisper-xxl_extract_{Guid.NewGuid():N}");
 
             try
             {
-                onProgress(new RuntimeInstallProgress("download", 5, "Downloading Whisper XXL runtime..."));
-                await DownloadFileAsync(assetUrl, tempArchive, progress =>
-                {
-                    var mapped = 5 + (int)(progress * 0.65); // 5..70
-                    onProgress(new RuntimeInstallProgress("download", mapped, $"Downloading Whisper XXL runtime... {progress}%"));
-                }, ct);
+                onProgress(new RuntimeInstallProgress("download", 5, "Скачивание Whisper XXL runtime..."));
+                await DownloadFileAsync(assetUrl, tempArchive,
+                    p => onProgress(p with { Stage = "download" }), ct,
+                    stage: "download", percentBase: 5, percentRange: 65);
 
                 onProgress(new RuntimeInstallProgress("extract", 72, "Extracting runtime archive..."));
                 Directory.CreateDirectory(tempExtractDir);
@@ -239,8 +265,11 @@ public sealed class WhisperRuntimeInstallerService
     private static async Task DownloadFileAsync(
         string url,
         string outputPath,
-        Action<int> onPercent,
-        CancellationToken ct)
+        Action<RuntimeInstallProgress> onProgress,
+        CancellationToken ct,
+        string stage = "download",
+        int percentBase = 5,
+        int percentRange = 65)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
         http.DefaultRequestHeaders.Add("User-Agent", "Contora");
@@ -249,6 +278,7 @@ public sealed class WhisperRuntimeInstallerService
 
         var totalBytes = response.Content.Headers.ContentLength ?? 0;
         long downloadedBytes = 0;
+        var downloadStart = DateTime.UtcNow;
 
         await using var source = await response.Content.ReadAsStreamAsync(ct);
         await using var destination = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
@@ -262,12 +292,38 @@ public sealed class WhisperRuntimeInstallerService
 
             await destination.WriteAsync(buffer.AsMemory(0, read), ct);
             downloadedBytes += read;
+
+            var elapsed = (DateTime.UtcNow - downloadStart).TotalSeconds;
+            var speed = elapsed > 0.5 ? downloadedBytes / elapsed : 0;
+            var eta = speed > 0 && totalBytes > downloadedBytes
+                ? TimeSpan.FromSeconds((totalBytes - downloadedBytes) / speed)
+                : (TimeSpan?)null;
+
+            int mappedPercent = percentBase;
+            string statusMsg = "Downloading...";
             if (totalBytes > 0)
             {
-                var percent = (int)(downloadedBytes * 100 / totalBytes);
-                onPercent(Math.Max(0, Math.Min(100, percent)));
+                var rawPercent = (double)downloadedBytes / totalBytes;
+                mappedPercent = percentBase + (int)(rawPercent * percentRange);
+
+                var dlMb = downloadedBytes / (1024.0 * 1024.0);
+                var totMb = totalBytes / (1024.0 * 1024.0);
+                var speedMb = speed / (1024.0 * 1024.0);
+                statusMsg = eta.HasValue
+                    ? $"{dlMb:F1}/{totMb:F1} МБ — {speedMb:F1} МБ/с — осталось {FormatEta(eta.Value)}"
+                    : $"{dlMb:F1}/{totMb:F1} МБ — {speedMb:F1} МБ/с";
             }
+
+            onProgress(new RuntimeInstallProgress(stage, Math.Min(percentBase + percentRange, mappedPercent),
+                statusMsg, downloadedBytes, totalBytes, speed, eta));
         }
+    }
+
+    private static string FormatEta(TimeSpan eta)
+    {
+        if (eta.TotalHours >= 1) return $"{(int)eta.TotalHours}ч {eta.Minutes}м";
+        if (eta.TotalMinutes >= 1) return $"{(int)eta.TotalMinutes}м {eta.Seconds}с";
+        return $"{eta.Seconds}с";
     }
 
     private static async Task ExtractArchiveAsync(

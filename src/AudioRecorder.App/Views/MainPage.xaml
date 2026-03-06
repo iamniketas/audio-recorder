@@ -335,11 +335,24 @@
                                     x:Name="WhisperModelComboBox"
                                     Grid.Column="1"
                                     SelectionChanged="OnWhisperModelChanged">
+                                    <ComboBoxItem Content="tiny" Tag="tiny" />
                                     <ComboBoxItem Content="small" Tag="small" />
                                     <ComboBoxItem Content="medium" Tag="medium" />
                                     <ComboBoxItem Content="large-v2" Tag="large-v2" />
                                 </ComboBox>
                             </Grid>
+<Border
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Padding="8,6">
+                                <TextBlock
+                                    x:Name="DeviceInfoText"
+                                    FontSize="12"
+                                    Text="Device: Auto (GPU preferred)"
+                                    TextWrapping="Wrap" />
+                            </Border>
 <Button
                                 x:Name="TranscribeButton"
                                 HorizontalAlignment="Stretch"
@@ -554,7 +567,7 @@
                             <DataTemplate x:DataType="views:TranscriptionSegmentViewModel">
                                 <Grid ColumnSpacing="12" Padding="0,4">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="50" />
+                                        <ColumnDefinition Width="Auto" MinWidth="60" />
                                         <ColumnDefinition Width="Auto" MinWidth="60" MaxWidth="100" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
@@ -563,11 +576,13 @@
                                         Content="{x:Bind TimestampDisplay}"
                                         Click="OnTimestampClicked"
                                         Tag="{x:Bind}"
-                                        Padding="4,2"
+                                        Padding="6,3"
                                         FontSize="11"
                                         FontFamily="Consolas"
-                                        Background="Transparent"
-                                        BorderThickness="0"
+                                        Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
                                         Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                         VerticalAlignment="Top"
                                         HorizontalAlignment="Left"

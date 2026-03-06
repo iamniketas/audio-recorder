@@ -169,6 +169,8 @@ public sealed partial class MainPage : Page
     private VelopackAsset? _readyToApplyRelease;
     private string _transcriptionMode = "quality";
     private string _whisperModel = "large-v2";
+    private string _deviceMode = "auto";
+    private bool _isTranscribing = false;
     private readonly Dictionary<string, string> _speakerNameMap = new();
 
     public ObservableCollection<AudioSourceViewModel> OutputSources { get; } = new();
@@ -186,6 +188,7 @@ public sealed partial class MainPage : Page
         _settingsService = new LocalSettingsService();
         _transcriptionMode = _settingsService.LoadTranscriptionMode();
         _whisperModel = _settingsService.LoadWhisperModel();
+        _deviceMode = _settingsService.LoadDeviceMode();
         _transcriptionService = CreateTranscriptionService(_transcriptionMode);
         _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
 
@@ -193,7 +196,8 @@ public sealed partial class MainPage : Page
         _sessionPipelineService = new SessionPipelineService();
         _playbackService.StateChanged += OnPlaybackStateChanged;
         _appUpdateService = new AppUpdateService();
-        _runtimeInstallerService = new WhisperRuntimeInstallerService();
+        var customInstallRoot = _settingsService.LoadInstallRootPath();
+        _runtimeInstallerService = new WhisperRuntimeInstallerService(customInstallRoot);
         _modelDownloadService = new WhisperModelDownloadService(_whisperModel);
         _ffmpegInstallerService = new FfmpegInstallerService();
         _sharedConfigService = new SharedModelConfigService();
@@ -228,6 +232,7 @@ public sealed partial class MainPage : Page
         LoadOutputFolderSetting();
         LoadTranscriptionModeSetting();
         LoadWhisperModelSetting();
+        UpdateDeviceInfoText();
 
         if (_runtimeInstallerService.IsRuntimeInstalled())
         {
@@ -243,7 +248,8 @@ public sealed partial class MainPage : Page
     private ITranscriptionService CreateTranscriptionService(string mode)
     {
         bool enableDiarization = !string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase);
-        return new WhisperTranscriptionService(modelName: _whisperModel, enableDiarization: enableDiarization);
+        var deviceMode = _settingsService.LoadDeviceMode();
+        return new WhisperTranscriptionService(modelName: _whisperModel, enableDiarization: enableDiarization, deviceMode: deviceMode);
     }
 
     private void ApplyTranscriptionMode(string mode, bool save)
@@ -281,15 +287,27 @@ public sealed partial class MainPage : Page
         var savedModel = _settingsService.LoadWhisperModel();
         _whisperModel = WhisperModelDownloadService.NormalizeModelName(savedModel);
 
-        if (WhisperModelComboBox.Items.Count >= 3)
+        // Items: 0=tiny, 1=small, 2=medium, 3=large-v2
+        WhisperModelComboBox.SelectedIndex = _whisperModel switch
         {
-            WhisperModelComboBox.SelectedIndex = _whisperModel switch
-            {
-                "small" => 0,
-                "medium" => 1,
-                _ => 2
-            };
-        }
+            "tiny" => 0,
+            "small" => 1,
+            "medium" => 2,
+            _ => 3
+        };
+    }
+
+    private void UpdateDeviceInfoText()
+    {
+        var mode = _settingsService.LoadDeviceMode();
+        var model = _whisperModel;
+        var deviceLabel = mode switch
+        {
+            "cpu"  => "CPU",
+            "cuda" => "GPU (CUDA)",
+            _      => "Auto (GPU preferred)"
+        };
+        DeviceInfoText.Text = $"Device: {deviceLabel} · Model: {model}";
     }
 
     private void ApplyWhisperModel(string modelName, bool save)
@@ -317,6 +335,7 @@ public sealed partial class MainPage : Page
         }
 
         UpdateTranscriptionAvailabilityUi();
+        UpdateDeviceInfoText();
     }
 
     private Task TryAutoSetupWhisperAsync()
@@ -679,8 +698,14 @@ public sealed partial class MainPage : Page
                     // Reload transcription mode
                     LoadTranscriptionModeSetting();
                     LoadWhisperModelSetting();
+                    // Reload device mode and rebuild service
+                    _deviceMode = _settingsService.LoadDeviceMode();
+                    _transcriptionService.ProgressChanged -= OnTranscriptionProgressChanged;
+                    _transcriptionService = CreateTranscriptionService(_transcriptionMode);
+                    _transcriptionService.ProgressChanged += OnTranscriptionProgressChanged;
                     LoadOutputFolderSetting();
                     UpdateTranscriptionAvailabilityUi();
+                    UpdateDeviceInfoText();
                 });
             });
 
@@ -1095,17 +1120,27 @@ public sealed partial class MainPage : Page
 
     private async void OnTranscribeClicked(object sender, RoutedEventArgs e)
     {
+        // If already transcribing — cancel
+        if (_isTranscribing)
+        {
+            _transcriptionCts?.Cancel();
+            TranscribeButton.Content = "Stopping...";
+            TranscribeButton.IsEnabled = false;
+            return;
+        }
+
         if (_lastRecordingPath == null || !File.Exists(_lastRecordingPath))
         {
             await ShowErrorDialogAsync("Recording file not found");
             return;
         }
 
-        TranscribeButton.IsEnabled = false;
+        _isTranscribing = true;
+        TranscribeButton.Content = "Stop transcription";
         TranscriptionProgressPanel.Visibility = Visibility.Visible;
         TranscriptionProgressBar.IsIndeterminate = true;
         TranscriptionStatusText.Text = "Preparing...";
-        TranscriptionStatsPanel.Visibility = Visibility.Collapsed; //  
+        TranscriptionStatsPanel.Visibility = Visibility.Collapsed;
 
         _transcriptionCts = new CancellationTokenSource();
 
@@ -1119,6 +1154,7 @@ public sealed partial class MainPage : Page
                 TranscriptionStatusText.Text = $"Done! {result.Segments.Count} segments";
                 TranscriptionProgressBar.IsIndeterminate = false;
                 TranscriptionProgressBar.Value = 100;
+                TranscriptionDetailsGrid.Visibility = Visibility.Collapsed;
 
                 if (result.OutputPath != null && File.Exists(result.OutputPath))
                 {
@@ -1161,8 +1197,8 @@ public sealed partial class MainPage : Page
                 if (pipelineResult.Success)
                 {
                     TranscriptionStatusText.Text = pipelineResult.UsedBackup
-                        ? $"Transcription saved in backup: {Path.GetFileName(pipelineResult.TargetPath)}"
-                        : $"Transcription and summary saved: {Path.GetFileName(pipelineResult.TargetPath)}";
+                        ? $"Saved (Ollama not available): {Path.GetFileName(pipelineResult.TargetPath)}"
+                        : $"Saved with summary: {Path.GetFileName(pipelineResult.TargetPath)}";
                 }
                 else
                 {
@@ -1183,17 +1219,33 @@ public sealed partial class MainPage : Page
             {
                 await ShowErrorDialogAsync($"Transcription error:\n{result.ErrorMessage}");
                 TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+                TranscriptionDetailsGrid.Visibility = Visibility.Collapsed;
+                TranscribeButton.Content = "Transcribe";
                 TranscribeButton.IsEnabled = true;
             }
+        }
+        catch (OperationCanceledException)
+        {
+            TranscriptionStatusText.Text = "Transcription stopped";
+            TranscriptionProgressBar.IsIndeterminate = false;
+            TranscriptionProgressBar.Value = 0;
+            TranscriptionDetailsGrid.Visibility = Visibility.Collapsed;
+            TranscribeButton.Content = "Transcribe";
+            TranscribeButton.IsEnabled = true;
         }
         catch (Exception ex)
         {
             await ShowErrorDialogAsync($"Error: {ex.Message}");
             TranscriptionProgressPanel.Visibility = Visibility.Collapsed;
+            TranscriptionDetailsGrid.Visibility = Visibility.Collapsed;
+            TranscribeButton.Content = "Transcribe";
             TranscribeButton.IsEnabled = true;
         }
         finally
         {
+            _isTranscribing = false;
+            TranscribeButton.Content = "Transcribe";
+            TranscribeButton.IsEnabled = true;
             _transcriptionCts?.Dispose();
             _transcriptionCts = null;
         }

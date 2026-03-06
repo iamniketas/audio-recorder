@@ -1,4 +1,5 @@
 using AudioRecorder.Core.Services;
+using AudioRecorder.Services.Hardware;
 using AudioRecorder.Services.Models;
 using AudioRecorder.Services.Settings;
 using AudioRecorder.Services.Transcription;
@@ -10,7 +11,7 @@ namespace AudioRecorder.Views;
 
 public sealed partial class SettingsWindow : Window
 {
-    private readonly WhisperRuntimeInstallerService _runtimeInstaller;
+    private WhisperRuntimeInstallerService _runtimeInstaller;
     private readonly FfmpegInstallerService _ffmpegInstaller;
     private readonly SharedModelConfigService _sharedConfigService;
     private readonly ISettingsService _settingsService;
@@ -81,6 +82,57 @@ public sealed partial class SettingsWindow : Window
         await LoadModelsDataAsync();
         LoadStorageData();
         LoadGeneralData();
+        _ = LoadHardwareDiagnosticsAsync();
+    }
+
+    // ─── Hardware Diagnostics ───
+
+    private async Task LoadHardwareDiagnosticsAsync()
+    {
+        try
+        {
+            var diag = await HardwareDiagnosticsService.RunAsync();
+
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (diag.PrimaryGpu != null)
+                {
+                    var cudaStatus = diag.PrimaryGpu.IsCudaCompatible ? "✓ CUDA" : "✗ нет CUDA";
+                    var vram = diag.PrimaryGpu.VramMb > 0 ? $", {diag.PrimaryGpu.VramMb / 1024.0:F1} ГБ VRAM" : "";
+                    HwGpuText.Text = $"{diag.PrimaryGpu.Name} ({cudaStatus}{vram})";
+                }
+                else
+                {
+                    HwGpuText.Text = "Не обнаружена";
+                }
+
+                if (diag.Cpu != null)
+                {
+                    var ghz = diag.Cpu.MaxMhz > 0 ? $" @ {diag.Cpu.MaxMhz / 1000.0:F1} ГГц" : "";
+                    var cores = diag.Cpu.Cores > 0 ? $", {diag.Cpu.Cores} ядер" : "";
+                    HwCpuText.Text = $"{diag.Cpu.Name}{ghz}{cores}";
+                }
+                else
+                {
+                    HwCpuText.Text = "—";
+                }
+
+                HwRamText.Text = $"{diag.TotalRamMb / 1024.0:F1} ГБ";
+
+                var deviceLabel = diag.RecommendedDevice == "cuda" ? "GPU" : "CPU";
+                HwRecommendText.Text = $"{deviceLabel} + модель {diag.RecommendedModel}";
+
+                if (!string.IsNullOrWhiteSpace(diag.PerformanceWarning))
+                {
+                    HwWarningText.Text = $"⚠ {diag.PerformanceWarning}";
+                    HwWarningText.Visibility = Visibility.Visible;
+                }
+            });
+        }
+        catch
+        {
+            // Diagnostics are informational — never crash on failure.
+        }
     }
 
     // ─── Engines ───
@@ -95,10 +147,12 @@ public sealed partial class SettingsWindow : Window
         {
             DownloadRuntimeBtn.Visibility = Visibility.Collapsed;
             DeleteRuntimeBtn.Visibility = Visibility.Visible;
+            InstallLocationLabel.Visibility = Visibility.Collapsed;
+            InstallLocationRow.Visibility = Visibility.Collapsed;
 
             var config = await _sharedConfigService.LoadAsync();
             var runtime = config.InstalledRuntimes.FirstOrDefault(r => r.Id == "faster-whisper-xxl");
-            RuntimeSizeText.Text = runtime != null ? FormatFileSize(runtime.DiskUsageBytes) : "calculating...";
+            RuntimeSizeText.Text = runtime != null ? FormatFileSize(runtime.DiskUsageBytes) : "вычисляем...";
 
             if (runtime == null)
             {
@@ -117,7 +171,12 @@ public sealed partial class SettingsWindow : Window
         {
             DownloadRuntimeBtn.Visibility = Visibility.Visible;
             DeleteRuntimeBtn.Visibility = Visibility.Collapsed;
-            RuntimeSizeText.Text = "—";
+            RuntimeSizeText.Text = "~500 МБ (будет скачан)";
+
+            // Show install location with option to change
+            InstallLocationLabel.Visibility = Visibility.Visible;
+            InstallLocationRow.Visibility = Visibility.Visible;
+            InstallLocationText.Text = _runtimeInstaller.GetRuntimeRoot();
         }
     }
 
@@ -143,6 +202,7 @@ public sealed partial class SettingsWindow : Window
                     {
                         RuntimeProgressBar.Value = progress.Percent;
                         RuntimeProgressText.Text = progress.StatusMessage;
+                        RuntimeProgressText.Visibility = Visibility.Visible;
                     });
                 },
                 _runtimeDownloadCts.Token);
@@ -172,6 +232,27 @@ public sealed partial class SettingsWindow : Window
     private void OnCancelRuntimeClicked(object sender, RoutedEventArgs e)
     {
         _runtimeDownloadCts?.Cancel();
+    }
+
+    private async void OnChangeInstallLocationClicked(object sender, RoutedEventArgs e)
+    {
+        var picker = new Windows.Storage.Pickers.FolderPicker
+        {
+            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder
+        };
+        picker.FileTypeFilter.Add("*");
+
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+        var folder = await picker.PickSingleFolderAsync();
+        if (folder == null) return;
+
+        _settingsService.SaveInstallRootPath(folder.Path);
+
+        // Rebuild installer with new root so GetRuntimeRoot() reflects the choice.
+        _runtimeInstaller = new WhisperRuntimeInstallerService(folder.Path);
+        InstallLocationText.Text = _runtimeInstaller.GetRuntimeRoot();
     }
 
     private async void OnDeleteRuntimeClicked(object sender, RoutedEventArgs e)
@@ -324,9 +405,21 @@ public sealed partial class SettingsWindow : Window
                         ModelProgressBar.Value = progress.Percent;
                         var dlMb = progress.DownloadedBytes / (1024.0 * 1024.0);
                         var totMb = progress.TotalBytes > 0 ? progress.TotalBytes / (1024.0 * 1024.0) : 0;
-                        ModelProgressText.Text = progress.TotalBytes > 0
-                            ? $"{progress.Percent}% ({dlMb:F1}/{totMb:F1} MB) — {progress.CurrentFile}"
-                            : $"Downloading {progress.CurrentFile}...";
+                        var speedMb = progress.SpeedBytesPerSecond / (1024.0 * 1024.0);
+
+                        string text;
+                        if (progress.TotalBytes > 0)
+                        {
+                            text = $"{dlMb:F1}/{totMb:F1} МБ";
+                            if (speedMb > 0) text += $" — {speedMb:F1} МБ/с";
+                            if (progress.Eta.HasValue) text += $" — осталось {FormatEta(progress.Eta.Value)}";
+                            text += $" — {progress.CurrentFile}";
+                        }
+                        else
+                        {
+                            text = $"Скачиваем {progress.CurrentFile}...";
+                        }
+                        ModelProgressText.Text = text;
                     });
                 },
                 _modelDownloadCts.Token);
@@ -436,11 +529,39 @@ public sealed partial class SettingsWindow : Window
         var mode = _settingsService.LoadTranscriptionMode();
         TranscriptionModeCombo.SelectedIndex = string.Equals(mode, "light", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
 
+        var deviceMode = _settingsService.LoadDeviceMode();
+        DeviceModeCombo.SelectedIndex = deviceMode switch
+        {
+            "cuda" => 1,
+            "cpu" => 2,
+            _ => 0
+        };
+        UpdateDeviceModeHint(deviceMode);
+
         var ffmpegInstalled = _ffmpegInstaller.IsInstalled();
         FfmpegStatusText.Text = ffmpegInstalled
-            ? $"Installed: {_ffmpegInstaller.GetInstalledPath()}"
-            : "Not installed. FFmpeg is needed for video import (~140 MB).";
+            ? $"Установлен: {_ffmpegInstaller.GetInstalledPath()}"
+            : "Не установлен. FFmpeg нужен для импорта видео (~140 МБ).";
         DownloadFfmpegBtn.Visibility = ffmpegInstalled ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void UpdateDeviceModeHint(string mode)
+    {
+        DeviceModeHintText.Text = mode switch
+        {
+            "cuda" => "GPU-режим: быстро, но требует NVIDIA GTX 600+ с актуальными драйверами.",
+            "cpu" => "CPU-режим: работает на любом ПК. Рекомендуйте модели small или tiny для приемлемой скорости.",
+            _ => "Авторежим: Contora сама определит GPU или CPU на основе оборудования."
+        };
+    }
+
+    private void OnDeviceModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not ComboBox combo || combo.SelectedItem is not ComboBoxItem item) return;
+        var mode = item.Tag?.ToString() ?? "auto";
+        _settingsService.SaveDeviceMode(mode);
+        UpdateDeviceModeHint(mode);
+        _onSettingsChanged?.Invoke();
     }
 
     private void OnTranscriptionModeChanged(object sender, SelectionChangedEventArgs e)
@@ -495,6 +616,13 @@ public sealed partial class SettingsWindow : Window
     }
 
     // ─── Helpers ───
+
+    private static string FormatEta(TimeSpan eta)
+    {
+        if (eta.TotalHours >= 1) return $"{(int)eta.TotalHours}ч {eta.Minutes}м";
+        if (eta.TotalMinutes >= 1) return $"{(int)eta.TotalMinutes}м {eta.Seconds}с";
+        return $"{eta.Seconds}с";
+    }
 
     private static string FormatFileSize(long bytes)
     {

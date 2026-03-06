@@ -6,7 +6,9 @@ public sealed record ModelDownloadProgress(
     int Percent,
     long DownloadedBytes,
     long TotalBytes,
-    string CurrentFile);
+    string CurrentFile,
+    double SpeedBytesPerSecond = 0,
+    TimeSpan? Eta = null);
 
 public sealed record ModelDownloadResult(
     bool Success,
@@ -52,6 +54,7 @@ public sealed class WhisperModelDownloadService
     {
         return modelName?.Trim().ToLowerInvariant() switch
         {
+            "tiny" => "tiny",
             "small" => "small",
             "medium" => "medium",
             _ => "large-v2"
@@ -80,6 +83,7 @@ public sealed class WhisperModelDownloadService
 
             var totalBytes = await GetTotalSizeAsync(http, ct);
             long downloadedBytes = 0;
+            var downloadStart = DateTime.UtcNow;
 
             foreach (var fileName in ModelFiles)
             {
@@ -115,10 +119,16 @@ public sealed class WhisperModelDownloadService
                         await destination.WriteAsync(buffer.AsMemory(0, read), ct);
                         downloadedBytes += read;
 
+                        var elapsed = (DateTime.UtcNow - downloadStart).TotalSeconds;
+                        var speed = elapsed > 0.5 ? downloadedBytes / elapsed : 0;
+                        var remaining = speed > 0 && totalBytes > downloadedBytes
+                            ? TimeSpan.FromSeconds((totalBytes - downloadedBytes) / speed)
+                            : (TimeSpan?)null;
+
                         var percent = totalBytes > 0
                             ? (int)(downloadedBytes * 100 / totalBytes)
                             : 0;
-                        onProgress(new ModelDownloadProgress(percent, downloadedBytes, totalBytes, fileName));
+                        onProgress(new ModelDownloadProgress(percent, downloadedBytes, totalBytes, fileName, speed, remaining));
                     }
 
                     await destination.FlushAsync(ct);

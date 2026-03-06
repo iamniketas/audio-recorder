@@ -158,12 +158,81 @@ public class LocalSettingsService : ISettingsService
         File.WriteAllText(_settingsFilePath, json);
     }
 
+    public void SaveDeviceMode(string mode)
+    {
+        try
+        {
+            var normalized = mode?.Trim().ToLowerInvariant() switch
+            {
+                "cpu" => "cpu",
+                "cuda" => "cuda",
+                _ => "auto"
+            };
+            var settings = LoadSettings();
+            settings.DeviceMode = normalized;
+            SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to save device mode: {ex.Message}");
+        }
+    }
+
+    public string LoadDeviceMode()
+    {
+        try
+        {
+            var settings = LoadSettings();
+            return settings.DeviceMode?.Trim().ToLowerInvariant() switch
+            {
+                "cpu" => "cpu",
+                "cuda" => "cuda",
+                _ => "auto"
+            };
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load device mode: {ex.Message}");
+            return "auto";
+        }
+    }
+
+    public void SaveInstallRootPath(string path)
+    {
+        try
+        {
+            var settings = LoadSettings();
+            settings.InstallRootPath = path;
+            SaveSettings(settings);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to save install root path: {ex.Message}");
+        }
+    }
+
+    public string? LoadInstallRootPath()
+    {
+        try
+        {
+            var settings = LoadSettings();
+            return string.IsNullOrWhiteSpace(settings.InstallRootPath) ? null : settings.InstallRootPath;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to load install root path: {ex.Message}");
+            return null;
+        }
+    }
+
     private class AppSettings
     {
         public List<string> SelectedSourceIds { get; set; } = new();
         public string? OutputFolder { get; set; }
         public string TranscriptionMode { get; set; } = "quality";
         public string WhisperModel { get; set; } = "large-v2";
+        public string DeviceMode { get; set; } = "auto";
+        public string? InstallRootPath { get; set; }
     }
 
     private static string NormalizeWhisperModel(string? modelName)
@@ -172,6 +241,7 @@ public class LocalSettingsService : ISettingsService
         {
             "small" => "small",
             "medium" => "medium",
+            "tiny" => "tiny",
             _ => "large-v2"
         };
     }

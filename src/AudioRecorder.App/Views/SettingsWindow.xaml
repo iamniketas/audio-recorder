@@ -44,6 +44,51 @@
                     <StackPanel x:Name="EnginesSection" Spacing="16" Visibility="Visible">
                         <TextBlock Text="Engines" FontSize="24" FontWeight="SemiBold" />
 
+                        <!-- Hardware info card -->
+                        <Border
+                            x:Name="HardwareCard"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Оборудование" FontSize="14" FontWeight="Medium" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="GPU:" Margin="0,0,12,4"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="HwGpuText" Grid.Row="0" Grid.Column="1" Text="Определяем..." Margin="0,0,0,4"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="CPU:" Margin="0,0,12,4"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="HwCpuText" Grid.Row="1" Grid.Column="1" Text="—" Margin="0,0,0,4"
+                                               TextWrapping="Wrap" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="RAM:" Margin="0,0,12,4"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="HwRamText" Grid.Row="2" Grid.Column="1" Text="—" Margin="0,0,0,4" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Рекомендация:" Margin="0,0,12,0"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock x:Name="HwRecommendText" Grid.Row="3" Grid.Column="1" Text="—"
+                                               FontWeight="SemiBold" />
+                                </Grid>
+                                <TextBlock x:Name="HwWarningText"
+                                           FontSize="11" TextWrapping="Wrap"
+                                           Foreground="#E0A000"
+                                           Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Faster Whisper XXL card -->
                         <Border
                             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                             BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -62,36 +107,57 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Status:" Margin="0,0,12,4"
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Статус:" Margin="0,0,12,4"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="RuntimeStatusText" Grid.Row="0" Grid.Column="1" Text="Checking..." Margin="0,0,0,4" />
+                                    <TextBlock x:Name="RuntimeStatusText" Grid.Row="0" Grid.Column="1" Text="Проверяем..." Margin="0,0,0,4" />
 
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Path:" Margin="0,0,12,4"
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Путь:" Margin="0,0,12,4"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                     <TextBlock x:Name="RuntimePathText" Grid.Row="1" Grid.Column="1" Text="—" Margin="0,0,0,4"
                                                TextTrimming="CharacterEllipsis" />
 
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Size:" Margin="0,0,12,0"
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Размер:" Margin="0,0,12,4"
                                                Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                    <TextBlock x:Name="RuntimeSizeText" Grid.Row="2" Grid.Column="1" Text="—" />
+                                    <TextBlock x:Name="RuntimeSizeText" Grid.Row="2" Grid.Column="1" Text="—" Margin="0,0,0,4" />
+
+                                    <!-- Install location (visible only before install) -->
+                                    <TextBlock x:Name="InstallLocationLabel" Grid.Row="3" Grid.Column="0"
+                                               Text="Папка:" Margin="0,0,12,0"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               Visibility="Collapsed" />
+                                    <Grid x:Name="InstallLocationRow" Grid.Row="3" Grid.Column="1"
+                                          Visibility="Collapsed" ColumnSpacing="6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="InstallLocationText" Grid.Column="0"
+                                                   FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                        <Button Grid.Column="1" Content="Изменить..."
+                                                Click="OnChangeInstallLocationClicked"
+                                                Padding="6,2" FontSize="11" />
+                                    </Grid>
                                 </Grid>
 
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button
                                         x:Name="DownloadRuntimeBtn"
-                                        Content="Download runtime"
+                                        Content="Скачать runtime (~500 МБ)"
                                         Click="OnDownloadRuntimeClicked"
                                         Style="{StaticResource AccentButtonStyle}" />
                                     <Button
                                         x:Name="CancelRuntimeBtn"
-                                        Content="Cancel"
+                                        Content="Отмена"
                                         Click="OnCancelRuntimeClicked"
                                         Visibility="Collapsed" />
                                     <Button
                                         x:Name="DeleteRuntimeBtn"
-                                        Content="Delete"
+                                        Content="Удалить"
                                         Click="OnDeleteRuntimeClicked"
                                         Visibility="Collapsed" />
                                 </StackPanel>
@@ -117,9 +183,9 @@
                             Padding="16"
                             Opacity="0.6">
                             <StackPanel Spacing="8">
-                                <TextBlock Text="More engines coming soon" FontSize="14" FontWeight="Medium"
+                                <TextBlock Text="Другие движки — скоро" FontSize="14" FontWeight="Medium"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
-                                <TextBlock Text="Parakeet, Canary, and other STT engines are planned for future releases."
+                                <TextBlock Text="Parakeet, Canary и другие STT-движки запланированы в будущих релизах."
                                            FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}" TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
@@ -159,9 +225,10 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <ComboBox x:Name="ModelSelectorCombo" Grid.Column="0" HorizontalAlignment="Stretch">
-                                        <ComboBoxItem Content="small (~500 MB)" Tag="small" />
-                                        <ComboBoxItem Content="medium (~1.5 GB)" Tag="medium" />
-                                        <ComboBoxItem Content="large-v2 (~3 GB)" Tag="large-v2" />
+                                        <ComboBoxItem Content="tiny  — ~75 МБ  | CPU: быстро" Tag="tiny" />
+                                        <ComboBoxItem Content="small — ~500 МБ | CPU: умеренно" Tag="small" />
+                                        <ComboBoxItem Content="medium — ~1.5 ГБ | GPU 2+ ГБ" Tag="medium" />
+                                        <ComboBoxItem Content="large-v2 — ~3 ГБ | GPU 4+ ГБ" Tag="large-v2" />
                                     </ComboBox>
                                     <Button
                                         x:Name="DownloadModelBtn"
@@ -296,6 +363,27 @@
                                 </ComboBox>
                                 <TextBlock Text="Quality mode includes speaker diarization. Light mode is faster but without speaker separation."
                                            FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16">
+                            <StackPanel Spacing="12">
+                                <TextBlock Text="Device mode" FontSize="14" FontWeight="Medium" />
+                                <ComboBox
+                                    x:Name="DeviceModeCombo"
+                                    SelectionChanged="OnDeviceModeChanged">
+                                    <ComboBoxItem Content="Auto (определяется автоматически)" Tag="auto" />
+                                    <ComboBoxItem Content="GPU (CUDA — быстро, нужна совместимая видеокарта)" Tag="cuda" />
+                                    <ComboBoxItem Content="CPU (медленнее, работает на любом ПК)" Tag="cpu" />
+                                </ComboBox>
+                                <TextBlock x:Name="DeviceModeHintText"
+                                           FontSize="11" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                             </StackPanel>
                         </Border>
 
